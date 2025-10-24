@@ -2,6 +2,7 @@
 const express = require('express');
 const app = express();
 const dotenv = require('dotenv');
+var bodyParser = require('body-parser');
 
 
 // dot env config
@@ -13,6 +14,7 @@ app.use(bodyParser.json());
 // Cors Setup
 app.use(function(req, res, next) {
     console.log(req.headers.origin);
+    console.log(req.url);
     console.log(req.headers.referer);
     // if (req.headers.origin == 'http://localhost:4200' || req.headers.referer == 'http://localhost:4200/') {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -25,3 +27,10 @@ app.use(function(req, res, next) {
     // }
 })
 // api setup
+app.use("/api/users", require('./users/routing'))
+
+
+// Running the exress Server
+const serve = app.listen(3010,()=>{
+
+})
