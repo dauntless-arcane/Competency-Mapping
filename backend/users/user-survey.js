@@ -16,7 +16,7 @@ app.post('/',async(req,res)=>{
         username,
 
     }).save()
-    res.status(500).json({
+    res.status(201).json({
         Status:true,
         Error:false,
         Msg:"The Data has been saved Successfully"
