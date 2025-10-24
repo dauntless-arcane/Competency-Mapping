@@ -3,7 +3,7 @@ const express = require('express');
 const app = express();
 const dotenv = require('dotenv');
 var bodyParser = require('body-parser');
-
+var DB = require('./database/mongo.cjs')
 
 // dot env config
 dotenv.config({ path: './.env' })
@@ -34,3 +34,4 @@ app.use("/api/users", require('./users/routing'))
 const serve = app.listen(3010,()=>{
 
 })
+// DB.connectDB();
