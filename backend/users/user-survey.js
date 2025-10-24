@@ -9,6 +9,13 @@ app.post('/',async(req,res)=>{
     const ans = req.body.ans;
     const username = req.headers['x-username']
     try{
+        console.log({
+        surveyId,
+        ans,
+        username,
+
+    });
+        
     // Storing the response in the mongo
     await new SurveyResponse({
         surveyId,

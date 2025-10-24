@@ -10,6 +10,7 @@ import { mockTestQuestions } from '@/lib/mock-data';
 import { ArrowLeft, ArrowRight, Brain, CheckCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
 
 const BUFFER_KEY = 'testAnswersBuffer';
 
@@ -57,17 +58,34 @@ export default function TestPage() {
   };
 
   // --- Download results as JSON + clear buffer ---
-  const handleSubmit = () => {
-    const dataStr = JSON.stringify(answers, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
+  const handleSubmit = async () => {
+  const payload = {
+    surveyId: 'refderfdvcxfdcx',
+    username:"ab",
+    ans: answers
+  };
+  try {
+    const response = await fetch(`${API_BASE}/users/entry`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-username': 'testuser',
+      },
+      body: JSON.stringify(payload),
+    });
 
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'test-results.json'; // Downloaded file name
-    a.click();
-    URL.revokeObjectURL(url);
+    const result = await response.json();
+    console.log('✅ Response:', result);
 
+    if (result.Status && !result.Error) {
+      localStorage.removeItem(BUFFER_KEY);
+      router.push('/results');
+    } else {
+      console.error('❌ Server error:', result.ErrMsg);
+    }
+  } catch (err) {
+    console.error('❌ Request failed:', err);
+  }
     // Clear buffer
     localStorage.removeItem(BUFFER_KEY);
 
