@@ -4,6 +4,7 @@ const app = express();
 const dotenv = require('dotenv');
 var bodyParser = require('body-parser');
 var DB = require('./database/mongo.cjs')
+// const { startSurveyResponseWatcher } = require('./utils/resultWatcher');
 
 // dot env config
 dotenv.config({ path: './.env' })
@@ -27,6 +28,9 @@ app.use(function(req, res, next) {
     // }
 })
 // api setup
+app.use("/api/admin", require('./admin/routing'))
+
+
 app.use("/api/users", require('./users/routing'))
 
 
@@ -35,3 +39,4 @@ const serve = app.listen(3010,()=>{
 
 })
 // DB.connectDB();
+// startSurveyResponseWatcher(); // 👀 Start watching globall
