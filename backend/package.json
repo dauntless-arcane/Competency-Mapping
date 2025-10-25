@@ -4,8 +4,7 @@
   "main": "app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node app.js"
-
+    "start": "nodemon app.js"
   },
   "repository": {
     "type": "git",
@@ -18,7 +17,11 @@
     "body-parser": "^2.2.0",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
-    "mongoose": "^8.19.2"
+    "joi": "^18.0.1",
+    "mongoose": "^8.19.2",
+    "nodemon": "^3.1.10",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "@semantic-release/changelog": "^6.0.3",

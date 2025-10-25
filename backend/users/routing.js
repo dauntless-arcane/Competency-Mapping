@@ -16,6 +16,8 @@ app.use('/',(req,res,next)=>{
 }) 
 
 app.use('/entry', require('./user-survey'))
+app.use('/result', require('./result'))
+app.use('/fetch-tests', require('./fetch-test'))
 
 // exporting the module
 module.exports = app
