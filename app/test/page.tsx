@@ -196,8 +196,6 @@ export default function TestPage() {
 
     // Mark as complete
     setIsComplete(true);
-
-  router.push('/tests');
 };
 
   // Loading state
