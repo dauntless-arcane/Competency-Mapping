@@ -4,16 +4,11 @@ const router = express.Router();
 const Result = require('../models/ResultSchema');
 
 
-router.get('/:userId/:testId', async (req, res) => {
+router.post('/:userId/:surveyId', async (req, res) => {
   try {
-    const { userId, testId } = req.params;
-
-    // Fetch result
-    const result = await Result.findOne({ userId, testId })
-      .populate('userId', 'name email') // optional if user model exists
-      .populate('attemptId') // optional, to see which SurveyResponse created it
-      .lean();
-
+    const { userId, surveyId } = req.params;    
+    const result = await Result.findOne({ userId, surveyId })
+    
     if (!result) {
       return res.status(404).json({
         Status: false,
@@ -27,6 +22,7 @@ router.get('/:userId/:testId', async (req, res) => {
       Error: false,
       Msg: 'Result fetched successfully',
       Result: {
+        
         testId: result.testId,
         userId: result.userId,
         overallSummary: result.overallSummary,
