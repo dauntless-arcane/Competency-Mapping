@@ -197,7 +197,8 @@ export default function TestPage() {
     // Mark as complete
     setIsComplete(true);
 
-  };
+  router.push('/tests');
+};
 
   // Loading state
   if (loading) {
@@ -378,15 +379,36 @@ export default function TestPage() {
                 Previous
               </Button>
 
-              <Button
-                onClick={handleNext}
-                disabled={!answers[currentQ.questionId]}
-                className="bg-[#2E58A6] hover:bg-[#032B61] text-white disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {currentQuestion === testData.questions.length - 1 ? 'Finish' : 'Next'}
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </Button>
+              <div className="flex gap-2">
+                {/* Clear current answer */}
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    const qId = testData?.questions[currentQuestion].questionId;
+                    if (qId) {
+                      setAnswers(prev => {
+                        const copy = { ...prev };
+                        delete copy[qId];
+                        return copy;
+                      });
+                    }
+                  }}
+                  className="text-white border-red-600 hover:bg-red-700 bg-red-600"
+                >
+                  Clear
+                </Button>
+
+                <Button
+                  onClick={handleNext}
+                  disabled={!answers[testData.questions[currentQuestion].questionId]}
+                  className="bg-[#2E58A6] hover:bg-[#032B61] text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {currentQuestion === testData.questions.length - 1 ? 'Finish' : 'Next'}
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              </div>
             </div>
+
 
             {/* Progress indicator */}
             <div className="pt-4 border-t border-gray-100">
