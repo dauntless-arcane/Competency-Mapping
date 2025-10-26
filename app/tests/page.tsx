@@ -8,7 +8,19 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Brain, Clock, Play, Search, Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+
+const API_URL = process.env.SERVER_API;
+
+// Interface for type safety
+interface TestItem {
+  id: number;
+  title: string;
+  description: string;
+  duration: string;
+  level: string;
+  recommended: boolean;
+}
 
 const mockTests = [
   {
@@ -47,10 +59,32 @@ const mockTests = [
 
 export default function TestsPage() {
   const router = useRouter();
+  const [tests, setTests] = useState<TestItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLevel, setFilterLevel] = useState('all');
 
-  // 🔎 Filter logic
+  // 🔄 Fetch tests from API
+  useEffect(() => {
+    const fetchTests = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/users/fetch-tests`); // your API endpoint
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data: TestItem[] = await response.json();
+        setTests(data);
+      } catch (err: any) {
+        setError(err.message || 'Failed to load tests');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTests();
+  }, []);
+  //  Filter logic
   const filteredTests = mockTests.filter(test => {
     const matchesSearch =
       test.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -62,7 +96,7 @@ export default function TestsPage() {
   const recommendedTests = filteredTests.filter(test => test.recommended);
   const allTests = filteredTests;
 
-  // 🧩 Reusable card component
+  //  Reusable card component
   const TestCard = ({ test }: { test: typeof mockTests[0] }) => (
     <Card
       className="shadow-lg hover:shadow-xl transition cursor-pointer border-0"
@@ -105,6 +139,23 @@ export default function TestsPage() {
       </CardContent>
     </Card>
   );
+
+  // Loading and error states
+  if (loading) {
+    return (
+      <MainLayout>
+        <p className="text-center text-[#6B86B4] mt-10">Loading tests...</p>
+      </MainLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <MainLayout>
+        <p className="text-center text-red-600 mt-10">Error: {error}</p>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
