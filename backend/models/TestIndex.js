@@ -2,11 +2,15 @@ const mongoose = require('mongoose');
 
 const TestIndexSchema = new mongoose.Schema({
   surveyId: { type: String, required: true, unique: true },
-  name: String,
-  description: String,
+  name: { type: String, required: true },
+  description: { type: String, required: true },
   categories: Array,
-  totalQuestions: Number,
-  scoringMethod: String,
+  totalQuestions: { type: Number, required: true},
+  scoringMethod: { type: String, required: true, },
+  duration: { type: String, required: true, },
+  level: { type: String, required: true, },
+  recommended: { type: Boolean, required: true,},
+
   questions: [
     {
       text: String,

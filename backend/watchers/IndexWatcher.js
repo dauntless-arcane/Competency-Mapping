@@ -5,10 +5,12 @@ const Question = require('../models/questionsSchema');
 
 const INDEX_COLLECTION = 'test_index';
 
+/**
+ * Builds or updates a single test index document based on its surveyId.
+ */
 async function buildSingleTestIndex(surveyIdOrObjectId) {
   try {
-    // Find test by surveyId first; ONLY fall back to _id to locate the test doc,
-    // but we will REQUIRE test.surveyId to exist before proceeding.
+    // 🧩 Fetch the test either by surveyId or fallback _id (for backward support)
     const test =
       (await Test.findOne({ surveyId: surveyIdOrObjectId })) ||
       (await Test.findById(surveyIdOrObjectId));
@@ -18,13 +20,16 @@ async function buildSingleTestIndex(surveyIdOrObjectId) {
       return;
     }
     if (!test.surveyId) {
-      console.error(`❌ Test ${test._id} is missing surveyId — aborting index build to avoid mixing.`);
+      console.error(
+        `❌ Test ${test._id} is missing surveyId — aborting index build to avoid mixing.`
+      );
       return;
     }
 
-    // 🚫 IMPORTANT: strict match by surveyId only (no $or, no fallbacks)
+    // 🎯 Strictly match all related questions by surveyId
     const questions = await Question.find({ surveyId: test.surveyId }).lean();
 
+    // 🧠 Prepare the index document (aligned with latest schema)
     const testIndexDoc = {
       surveyId: test.surveyId,
       name: test.name,
@@ -32,25 +37,33 @@ async function buildSingleTestIndex(surveyIdOrObjectId) {
       categories: test.categories,
       totalQuestions: test.totalQuestions,
       scoringMethod: test.scoringMethod,
+      duration: test.duration || '8 min',
+      level: test.level || 'Intermediate',
+      recommended: typeof test.recommended === 'boolean' ? test.recommended : true,
       questions,
-      updatedAt: new Date(),
+      updatedAt: new Date()
     };
 
     const collection = mongoose.connection.collection(INDEX_COLLECTION);
 
-    // Upsert by surveyId only
+    // 🔁 Upsert by surveyId
     await collection.updateOne(
       { surveyId: test.surveyId },
       { $set: testIndexDoc },
       { upsert: true }
     );
 
-    console.log(`✅ Indexed test: ${test.name} (${test.surveyId}) with ${questions.length} questions`);
+    console.log(
+      `✅ Indexed test: ${test.name} (${test.surveyId}) — ${questions.length} questions`
+    );
   } catch (err) {
     console.error(`❌ Error building test index for ${surveyIdOrObjectId}:`, err.message);
   }
 }
 
+/**
+ * Rebuilds all test indexes from scratch.
+ */
 async function buildAllTestIndexes() {
   try {
     const collection = mongoose.connection.collection(INDEX_COLLECTION);
@@ -62,7 +75,7 @@ async function buildAllTestIndexes() {
 
     console.log(`🧰 Rebuilding index for ${tests.length} tests (strict surveyId match)...`);
 
-    // Optional: clear the index to avoid leftovers
+    // Optional cleanup
     await collection.deleteMany({});
 
     for (const t of tests) {
@@ -79,6 +92,9 @@ async function buildAllTestIndexes() {
   }
 }
 
+/**
+ * Starts the change streams to automatically keep the test index up to date.
+ */
 async function startTestIndexWatcher() {
   try {
     if (mongoose.connection.readyState === 0) {
@@ -86,27 +102,27 @@ async function startTestIndexWatcher() {
       console.log('✅ Connected to MongoDB (watcher)');
     }
 
-    // Build existing
+    // 🏗 Build current indexes on startup
     await buildAllTestIndexes();
 
-    // Watch for future changes
-    console.log('👀 Watching Tests & Questions for strict surveyId updates...');
+    // 👀 Start watching both collections
+    console.log('👀 Watching Tests & Questions for surveyId updates...');
 
     const testStream = Test.watch([
-      { $match: { operationType: { $in: ['insert', 'update', 'replace'] } } },
+      { $match: { operationType: { $in: ['insert', 'update', 'replace'] } } }
     ]);
 
     const questionStream = Question.watch([
-      { $match: { operationType: { $in: ['insert', 'update', 'replace', 'delete'] } } },
+      { $match: { operationType: { $in: ['insert', 'update', 'replace', 'delete'] } } }
     ]);
 
     testStream.on('change', async (change) => {
-      const surveyId = change.fullDocument?.surveyId; // only react if surveyId is present
+      const surveyId = change.fullDocument?.surveyId;
       if (surveyId) {
         console.log(`🧩 Test changed for surveyId ${surveyId}`);
         await buildSingleTestIndex(surveyId);
       } else {
-        console.warn('⚠️ Test change without surveyId — skipping to avoid cross-mapping.');
+        console.warn('⚠️ Test change without surveyId — skipping.');
       }
     });
 
@@ -120,10 +136,12 @@ async function startTestIndexWatcher() {
       }
     });
 
+    // 🧯 Auto-restart if streams break
     const restart = () => {
-      console.warn('⚠️ Stream closed/errored — restarting...');
+      console.warn('⚠️ Change stream closed — restarting watcher in 3s...');
       setTimeout(startTestIndexWatcher, 3000);
     };
+
     testStream.on('error', restart);
     questionStream.on('error', restart);
     testStream.on('close', restart);
@@ -133,4 +151,8 @@ async function startTestIndexWatcher() {
   }
 }
 
-module.exports = { startTestIndexWatcher, buildAllTestIndexes, buildSingleTestIndex };
+module.exports = {
+  startTestIndexWatcher,
+  buildAllTestIndexes,
+  buildSingleTestIndex
+};
