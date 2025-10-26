@@ -1,64 +1,148 @@
-const Question = require('../models/questionsSchema');
-const Result = require('../models/ResultSchema');
+const express = require('express');
+const mongoose = require('mongoose');
+const Joi = require('joi');
 
-async function generateResultFromSurvey(surveyResponse) {
-  if (!surveyResponse || !surveyResponse.answers)
-    throw new Error('Invalid SurveyResponse');
+const app = express.Router();
+const Questions = require('../models/questionsSchema');
+const Tests = require('../models/TestsSchema');
 
-  // Destructure fields from SurveyResponse document
-  const { testId, username, _id: attemptId, answers } = surveyResponse;
+// ---------- Joi Schemas ----------
+const optionSchema = Joi.object({
+  value: Joi.number().required(),
+  label: Joi.alternatives(Joi.string(), Joi.number()).required()
+});
 
-  // ✅ Check if a result already exists for THIS SurveyResponse ObjectId
-  const existing = await Result.findOne({ attemptId });
-  if (existing) {
-    console.log(`♻️ Updating existing Result for attempt ${attemptId}`);
-    return await updateExistingResult(existing, answers);
+const questionSchema = Joi.object({
+  text: Joi.string().trim().min(1).required(),
+  options: Joi.array().items(optionSchema).min(2).required(),
+  trait: Joi.string().trim().min(1).required(),
+  reversedScore: Joi.alternatives().try(
+    Joi.boolean(),
+    Joi.string().valid('true', 'false', 'True', 'False', 'TRUE', 'FALSE', '0', '1')
+  ).required()
+});
+
+const payloadSchema = Joi.object({
+  name: Joi.string().trim().min(3).max(120).required(),
+  description: Joi.string().trim().min(3).required(),
+  categories: Joi.array()
+    .items(Joi.object({ name: Joi.string().required() }))
+    .min(1)
+    .required(),
+  scoringMethod: Joi.string().valid('sum', 'average', 'weighted').required(),
+  questions: Joi.array().items(questionSchema).min(1).required(),
+  totalQuestions: Joi.number().integer().min(1).required(),
+  duration: Joi.number().integer().min(1).required(),
+  level: Joi.string()
+    .valid('Beginner', 'Intermediate', 'Advanced')
+    .default('Intermediate'),
+  recommended: Joi.boolean().default(true),
+  // ✅ Optional explicit constants (trait name → constant number)
+  categoryConstants: Joi.object()
+    .pattern(Joi.string(), Joi.number())
+    .default({})
+}).custom((value, helpers) => {
+  if (value.totalQuestions !== value.questions.length) {
+    return helpers.error('any.custom', { message: 'totalQuestions must equal questions.length' });
+  }
+  return value;
+}, 'totalQuestions matches');
+
+// ---------- Helpers ----------
+function generateHex7() {
+  return Math.floor(Math.random() * 0x10000000)
+    .toString(16)
+    .toUpperCase()
+    .padStart(7, '0');
+}
+
+const toBoolString = v => {
+  if (typeof v === 'boolean') return v ? 'true' : 'false';
+  const s = String(v).toLowerCase();
+  return (s === '1' || s === 'true') ? 'true' : 'false';
+};
+
+// ---------- Route ----------
+app.post('/', async (req, res) => {
+  const { value, error } = payloadSchema.validate(req.body, { abortEarly: false });
+
+  if (error) {
+    return res.status(400).json({
+      Status: false,
+      Error: true,
+      Msg: 'Validation failed',
+      Details: error.details.map(d => ({
+        path: d.path.join('.'),
+        message: d.message
+      }))
+    });
   }
 
-  // 🔍 Fetch all relevant question documents
-  const questionIds = answers.map((a) => a.questionId);
-  const questions = await Question.find({ questionId: { $in: questionIds } }).lean();
+  const surveyId = generateHex7();
 
-  // 🧮 Calculate scores per trait
-  const traitScores = {};
-  for (const ans of answers) {
-    const q = questions.find((q) => String(q.questionId) === String(ans.questionId));
-    if (!q) continue;
-
-    const trait = q.trait;
-    const reversed = q.reversedScore === true || q.reversedScore === 'true';
-    const value = reversed ? 6 - ans.value : ans.value;
-
-    traitScores[trait] = (traitScores[trait] || 0) + value;
-  }
-
-  // 🗒️ Build result summary and breakdown
-  const summary = Object.entries(traitScores)
-    .map(([trait, score]) => `${trait}: ${score}`)
-    .join(', ');
-
-  const traitBreakdown = Object.entries(traitScores).map(([trait, score]) => ({
-    trait,
-    description: `Your score for ${trait} is ${score}`
+  // Normalize question documents
+  const questionsNorm = value.questions.map(q => ({
+    surveyId,
+    questionId: generateHex7(),
+    text: q.text.trim(),
+    trait: q.trait.trim(),
+    reversedScore: toBoolString(q.reversedScore),
+    options: q.options.map(o => ({
+      value: Number(o.value),
+      label: String(o.label)
+    }))
   }));
 
-  // 💾 Save new Result — linked directly to the SurveyResponse’s ObjectId
-  const result = await Result.create({
-    testId,
-    userId: surveyResponse.username,
-    attemptId, // direct ObjectId reference
-    overallSummary: summary,
-    traitBreakdown
-  });
+  // ✅ Build constants using category.name
+  let constants = {};
+  if (Object.keys(value.categoryConstants || {}).length > 0) {
+    constants = value.categoryConstants; // Use provided
+  } else {
+    for (const cat of value.categories) {
+      if (cat.name) constants[cat.name] = 0;
+    }
+  }
 
-  console.log(`✅ Result generated for ${username} [${attemptId}]`);
-  return result;
-}
+  // Prepare test document
+  const testDoc = {
+    surveyId,
+    name: value.name.trim(),
+    description: value.description.trim(),
+    categories: value.categories,
+    totalQuestions: value.totalQuestions ?? questionsNorm.length,
+    scoringMethod: value.scoringMethod,
+    duration: value.duration,
+    level: value.level || 'Intermediate',
+    recommended: value.recommended ?? true,
+    categoryConstants: constants // ✅ directly uses category.name keys
+  };
 
-// Optional helper if you want updates later
-async function updateExistingResult(existingResult, answers) {
-  // Implement logic to recompute and update result here if needed
-  return existingResult;
-}
+  // Transaction-safe save
+  const session = await mongoose.startSession();
+  try {
+    await session.withTransaction(async () => {
+      await Tests.create([testDoc], { session });
+      await Questions.insertMany(questionsNorm, { session });
+    });
 
-module.exports = { generateResultFromSurvey };
+    return res.status(201).json({
+      Status: true,
+      Error: false,
+      Msg: 'Test and questions created successfully',
+      surveyId,
+      totalQuestions: questionsNorm.length
+    });
+  } catch (err) {
+    console.error('❌ Transaction failed:', err);
+    return res.status(500).json({
+      Status: false,
+      Error: true,
+      Msg: 'Failed to create test/questions',
+      ErrMsg: err.message || String(err)
+    });
+  } finally {
+    await session.endSession();
+  }
+});
+
+module.exports = app;

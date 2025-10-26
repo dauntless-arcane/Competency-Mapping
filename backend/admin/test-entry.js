@@ -25,22 +25,28 @@ const questionSchema = Joi.object({
 const payloadSchema = Joi.object({
   name: Joi.string().trim().min(3).max(120).required(),
   description: Joi.string().trim().min(3).required(),
-  categories: Joi.array().items(Joi.object()).min(1).required(),
+  categories: Joi.array()
+    .items(Joi.object({ name: Joi.string().required() }))
+    .min(1)
+    .required(),
   scoringMethod: Joi.string().valid('sum', 'average', 'weighted').required(),
   questions: Joi.array().items(questionSchema).min(1).required(),
   totalQuestions: Joi.number().integer().min(1).required(),
-  duration: Joi.number().integer().min(1).required(), // ✅ new required field
+  duration: Joi.number().integer().min(1).required(),
   level: Joi.string()
     .valid('Beginner', 'Intermediate', 'Advanced')
     .default('Intermediate'),
-  recommended: Joi.boolean().default(true)
+  recommended: Joi.boolean().default(true),
+  // ✅ Allow optional manual constants
+  categoryConstants: Joi.object()
+    .pattern(Joi.string(), Joi.number())
+    .default({})
 }).custom((value, helpers) => {
   if (value.totalQuestions !== value.questions.length) {
     return helpers.error('any.custom', { message: 'totalQuestions must equal questions.length' });
   }
   return value;
 }, 'totalQuestions matches');
-
 
 // ---------- Helpers ----------
 function generateHex7() {
@@ -55,7 +61,6 @@ const toBoolString = v => {
   const s = String(v).toLowerCase();
   return (s === '1' || s === 'true') ? 'true' : 'false';
 };
-
 
 // ---------- Route ----------
 app.post('/', async (req, res) => {
@@ -75,6 +80,7 @@ app.post('/', async (req, res) => {
 
   const surveyId = generateHex7();
 
+  // 🧩 Normalize question data
   const questionsNorm = value.questions.map(q => ({
     surveyId,
     questionId: generateHex7(),
@@ -87,6 +93,17 @@ app.post('/', async (req, res) => {
     }))
   }));
 
+  // 🧮 Build category constants automatically using category.name
+  let constants = {};
+  if (Object.keys(value.categoryConstants || {}).length > 0) {
+    constants = value.categoryConstants; // use provided manually
+  } else {
+    for (const cat of value.categories) {
+      if (cat.name) constants[cat.name] = 0; // default 0
+    }
+  }
+
+  // 🧱 Build the test document
   const testDoc = {
     surveyId,
     name: value.name.trim(),
@@ -94,9 +111,10 @@ app.post('/', async (req, res) => {
     categories: value.categories,
     totalQuestions: value.totalQuestions ?? questionsNorm.length,
     scoringMethod: value.scoringMethod,
-    duration: value.duration,         // ✅ now required
+    duration: value.duration,
     level: value.level || 'Intermediate',
-    recommended: value.recommended ?? true
+    recommended: value.recommended ?? true,
+    categoryConstants: constants // ✅ NEW FIELD
   };
 
   const session = await mongoose.startSession();
