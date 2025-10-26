@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'backend/**'  # only run when backend files change
+      - '/tree/main/backend**'  # only run when backend files change
 
 jobs:
   release:
