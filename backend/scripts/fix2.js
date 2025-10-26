@@ -5,7 +5,7 @@ const Question = require('../models/questionsSchema');
 
 (async () => {
   try {
-    await mongoose.connect("mongodb+srv://pratyush:eZyVgAbkhBf50KLR@faces-data.mwhisr6.mongodb.net/?retryWrites=true&w=majority&appName=faces-data", { useNewUrlParser: true, useUnifiedTopology: true });
+    await mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true });
 
     const tests = await Test.find({}, { _id: 1, surveyId: 1 }).lean();
     const byId = new Map(tests.map(t => [String(t._id), t.surveyId]));
