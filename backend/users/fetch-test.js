@@ -9,7 +9,7 @@ router.post('/', async (req, res) => {
 try{
     const data = await mongoose.connection.collection('test_index').find({},
    { projection:    {
-        _id:0,surveyId:1,description:1,
+        _id:0,surveyId:1,description:1,name:1
     }}
 ).toArray()
     res.status(200).json({status:true, error:false,data:data})
