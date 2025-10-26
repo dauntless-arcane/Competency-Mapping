@@ -1,148 +1,96 @@
-const express = require('express');
-const mongoose = require('mongoose');
-const Joi = require('joi');
+const Question = require('../models/questionsSchema');
+const Result = require('../models/ResultSchema');
+const Test = require('../models/TestsSchema');
 
-const app = express.Router();
-const Questions = require('../models/questionsSchema');
-const Tests = require('../models/TestsSchema');
+/**
+ * Simple psychometric result generator:
+ * Final Score = SUM(all question values per category) + categoryConstants[category]
+ */
+async function generateResultFromSurvey(surveyResponse) {
+  if (!surveyResponse || !surveyResponse.answers)
+    throw new Error('Invalid SurveyResponse');
 
-// ---------- Joi Schemas ----------
-const optionSchema = Joi.object({
-  value: Joi.number().required(),
-  label: Joi.alternatives(Joi.string(), Joi.number()).required()
-});
+  const { surveyId, username, _id: attemptId, answers } = surveyResponse;
+  if (!surveyId || !username) throw new Error('Missing surveyId or username');
 
-const questionSchema = Joi.object({
-  text: Joi.string().trim().min(1).required(),
-  options: Joi.array().items(optionSchema).min(2).required(),
-  trait: Joi.string().trim().min(1).required(),
-  reversedScore: Joi.alternatives().try(
-    Joi.boolean(),
-    Joi.string().valid('true', 'false', 'True', 'False', 'TRUE', 'FALSE', '0', '1')
-  ).required()
-});
-
-const payloadSchema = Joi.object({
-  name: Joi.string().trim().min(3).max(120).required(),
-  description: Joi.string().trim().min(3).required(),
-  categories: Joi.array()
-    .items(Joi.object({ name: Joi.string().required() }))
-    .min(1)
-    .required(),
-  scoringMethod: Joi.string().valid('sum', 'average', 'weighted').required(),
-  questions: Joi.array().items(questionSchema).min(1).required(),
-  totalQuestions: Joi.number().integer().min(1).required(),
-  duration: Joi.number().integer().min(1).required(),
-  level: Joi.string()
-    .valid('Beginner', 'Intermediate', 'Advanced')
-    .default('Intermediate'),
-  recommended: Joi.boolean().default(true),
-  // ✅ Optional explicit constants (trait name → constant number)
-  categoryConstants: Joi.object()
-    .pattern(Joi.string(), Joi.number())
-    .default({})
-}).custom((value, helpers) => {
-  if (value.totalQuestions !== value.questions.length) {
-    return helpers.error('any.custom', { message: 'totalQuestions must equal questions.length' });
-  }
-  return value;
-}, 'totalQuestions matches');
-
-// ---------- Helpers ----------
-function generateHex7() {
-  return Math.floor(Math.random() * 0x10000000)
-    .toString(16)
-    .toUpperCase()
-    .padStart(7, '0');
-}
-
-const toBoolString = v => {
-  if (typeof v === 'boolean') return v ? 'true' : 'false';
-  const s = String(v).toLowerCase();
-  return (s === '1' || s === 'true') ? 'true' : 'false';
-};
-
-// ---------- Route ----------
-app.post('/', async (req, res) => {
-  const { value, error } = payloadSchema.validate(req.body, { abortEarly: false });
-
-  if (error) {
-    return res.status(400).json({
-      Status: false,
-      Error: true,
-      Msg: 'Validation failed',
-      Details: error.details.map(d => ({
-        path: d.path.join('.'),
-        message: d.message
-      }))
-    });
+  // ✅ Prevent duplicate result for same attempt
+  const existing = await Result.findOne({ attemptId });
+  if (existing) {
+    console.log(`♻️ Result already exists for attempt ${attemptId}`);
+    return existing;
   }
 
-  const surveyId = generateHex7();
+  // 🔍 Load test and questions
+  const test = await Test.findOne({ surveyId }).lean();
+  if (!test) throw new Error(`No test found for surveyId: ${surveyId}`);
 
-  // Normalize question documents
-  const questionsNorm = value.questions.map(q => ({
-    surveyId,
-    questionId: generateHex7(),
-    text: q.text.trim(),
-    trait: q.trait.trim(),
-    reversedScore: toBoolString(q.reversedScore),
-    options: q.options.map(o => ({
-      value: Number(o.value),
-      label: String(o.label)
-    }))
+  const questions = await Question.find({ surveyId }).lean();
+  if (!questions.length) throw new Error(`No questions found for surveyId: ${surveyId}`);
+
+  // ✅ Convert categoryConstants safely
+  let constants = {};
+  if (test.categoryConstants instanceof Map) {
+    constants = Object.fromEntries(test.categoryConstants);
+  } else if (typeof test.categoryConstants?.toObject === 'function') {
+    constants = test.categoryConstants.toObject();
+  } else if (typeof test.categoryConstants === 'object' && test.categoryConstants !== null) {
+    constants = { ...test.categoryConstants };
+  }
+
+  // ✅ Prepare category totals
+  const totals = {};
+  const categories = Array.isArray(test.categories)
+    ? test.categories.map(c => c.name)
+    : [];
+
+  for (const cat of categories) {
+    totals[cat] = 0; // initialize all categories to 0
+    if (typeof constants[cat] !== 'number') constants[cat] = 0;
+  }
+
+  // 🧮 Calculate sums per trait/category
+  for (const ans of answers) {
+    const q = questions.find(q => String(q.questionId) === String(ans.questionId));
+    if (!q || !q.trait) continue;
+
+    const trait = q.trait.trim();
+    const reversed = q.reversedScore === true || q.reversedScore === 'true';
+    const value = Number(ans.value);
+    if (Number.isNaN(value)) continue;
+
+    const adjusted = reversed ? 6 - value : value;
+    totals[trait] = (totals[trait] || 0) + adjusted;
+  }
+
+  // 🧾 Add constants → final scores
+  const scores = {};
+  for (const trait of Object.keys(totals)) {
+    const total = totals[trait] || 0;
+    const constant = constants[trait] || 0;
+    scores[trait] = total + constant;
+  }
+
+  // 🧠 Build summary + breakdown
+  const summary = Object.entries(scores)
+    .map(([trait, score]) => `${trait}: ${score}`)
+    .join(', ');
+
+  const traitBreakdown = Object.entries(scores).map(([trait, score]) => ({
+    trait,
+    description: `Final score for ${trait}: ${score} (sum + constant ${constants[trait] || 0})`
   }));
 
-  // ✅ Build constants using category.name
-  let constants = {};
-  if (Object.keys(value.categoryConstants || {}).length > 0) {
-    constants = value.categoryConstants; // Use provided
-  } else {
-    for (const cat of value.categories) {
-      if (cat.name) constants[cat.name] = 0;
-    }
-  }
-
-  // Prepare test document
-  const testDoc = {
+  // 💾 Save result
+  const result = await Result.create({
     surveyId,
-    name: value.name.trim(),
-    description: value.description.trim(),
-    categories: value.categories,
-    totalQuestions: value.totalQuestions ?? questionsNorm.length,
-    scoringMethod: value.scoringMethod,
-    duration: value.duration,
-    level: value.level || 'Intermediate',
-    recommended: value.recommended ?? true,
-    categoryConstants: constants // ✅ directly uses category.name keys
-  };
+    userId: username,
+    attemptId,
+    overallSummary: summary,
+    traitBreakdown
+  });
 
-  // Transaction-safe save
-  const session = await mongoose.startSession();
-  try {
-    await session.withTransaction(async () => {
-      await Tests.create([testDoc], { session });
-      await Questions.insertMany(questionsNorm, { session });
-    });
+  console.log(`✅ [local] Result generated for ${username} (${surveyId})`);
+  return result;
+}
 
-    return res.status(201).json({
-      Status: true,
-      Error: false,
-      Msg: 'Test and questions created successfully',
-      surveyId,
-      totalQuestions: questionsNorm.length
-    });
-  } catch (err) {
-    console.error('❌ Transaction failed:', err);
-    return res.status(500).json({
-      Status: false,
-      Error: true,
-      Msg: 'Failed to create test/questions',
-      ErrMsg: err.message || String(err)
-    });
-  } finally {
-    await session.endSession();
-  }
-});
-
-module.exports = app;
+module.exports = { generateResultFromSurvey };
