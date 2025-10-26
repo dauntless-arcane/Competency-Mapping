@@ -59,7 +59,7 @@ export default function TestPage() {
   const [testData, setTestData] = useState<TestData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<{ [key: string]: number }>({});
   const [isComplete, setIsComplete] = useState(false);
@@ -84,7 +84,7 @@ export default function TestPage() {
           headers: {
             'Content-Type': 'application/json',
           },
-        });
+        })
 
         if (!response.ok) {
           throw new Error(`Server error: ${response.status}`);
@@ -111,7 +111,7 @@ export default function TestPage() {
   // Load answers from buffer on mount
   useEffect(() => {
     if (!testData) return;
-    
+
     const saved = localStorage.getItem(BUFFER_KEY);
     if (saved) {
       try {
@@ -131,7 +131,7 @@ export default function TestPage() {
 
   const handleAnswerChange = (value: string) => {
     if (!testData) return;
-    
+
     const numericValue = parseInt(value, 10);
     setAnswers(prev => ({
       ...prev,
@@ -141,7 +141,7 @@ export default function TestPage() {
 
   const handleNext = () => {
     if (!testData) return;
-    
+
     if (currentQuestion < testData.questions.length - 1) {
       setCurrentQuestion(prev => prev + 1);
     } else {
@@ -155,33 +155,49 @@ export default function TestPage() {
     }
   };
 
-  const handleSubmit = () => {
-  if (!answers || Object.keys(answers).length === 0) return;
+  const handleSubmit = async () => {
+    console.log(answers);
 
-  // Prepare the JSON string
-  const payload = {
-    surveyId: testData?.surveyId || 'unknown',
-    username: 'testuser',
-    answers,
+    if (!answers || Object.keys(answers).length === 0) return;
+    const formattedAnswers = Object.entries(answers).map(([questionId, value]) => ({
+      questionId,
+      value
+    }));
+
+    const payload = {
+      surveyId: surveyId || 'unknown',
+      ans: formattedAnswers,
+    };
+
+    try {
+      const response = await fetch(`${API_BASE}/users/entry`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-username': 'testuser',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+      console.log('✅ Response:', result);
+
+      if (result.Status && !result.Error) {
+        localStorage.removeItem(BUFFER_KEY);
+        router.push('/results');
+      } else {
+        console.error('❌ Server error:', result.ErrMsg);
+      }
+    } catch (err) {
+      console.error('❌ Request failed:', err);
+    }
+    // Clear the buffer
+    localStorage.removeItem(BUFFER_KEY);
+
+    // Mark as complete
+    setIsComplete(true);
+
   };
-
-  const dataStr = JSON.stringify(payload, null, 2);
-  const blob = new Blob([dataStr], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-
-  // Trigger download
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'test-results.json';
-  a.click();
-  URL.revokeObjectURL(url);
-
-  // Clear the buffer
-  localStorage.removeItem(BUFFER_KEY);
-
-  // Mark as complete
-  setIsComplete(true);
-};
 
   // Loading state
   if (loading) {
@@ -208,15 +224,15 @@ export default function TestPage() {
                 <p className="text-[#6B86B4] mt-2">{error || 'Test not found'}</p>
               </div>
               <div className="flex gap-2 justify-center">
-                <Button 
-                  onClick={() => router.push('/tests')} 
+                <Button
+                  onClick={() => router.push('/tests')}
                   variant="outline"
                   className="border-[#6B86B4]"
                 >
                   Back to Tests
                 </Button>
-                <Button 
-                  onClick={() => window.location.reload()} 
+                <Button
+                  onClick={() => window.location.reload()}
                   className="bg-[#2E58A6] hover:bg-[#032B61]"
                 >
                   Try Again
@@ -274,7 +290,7 @@ export default function TestPage() {
                   className="flex-1 bg-[#2E58A6] hover:bg-[#032B61] text-white"
                   disabled={answeredQuestions < testData.questions.length}
                 >
-                  Submit Test 
+                  Submit Test
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
               </div>
@@ -330,11 +346,10 @@ export default function TestPage() {
                 {currentQ.options.map((option, index) => (
                   <div
                     key={option._id}
-                    className={`flex items-center space-x-3 p-4 rounded-lg border-2 transition-all ${
-                      answers[currentQ.questionId] === option.value
-                        ? 'border-[#2E58A6] bg-[#2E58A6]/5'
-                        : 'border-gray-200 hover:border-[#6B86B4] hover:bg-[#F2E5D8]/30'
-                    }`}
+                    className={`flex items-center space-x-3 p-4 rounded-lg border-2 transition-all ${answers[currentQ.questionId] === option.value
+                      ? 'border-[#2E58A6] bg-[#2E58A6]/5'
+                      : 'border-gray-200 hover:border-[#6B86B4] hover:bg-[#F2E5D8]/30'
+                      }`}
                   >
                     <RadioGroupItem
                       value={option.value.toString()}
@@ -383,13 +398,12 @@ export default function TestPage() {
                   {testData.questions.map((_, idx) => (
                     <div
                       key={idx}
-                      className={`h-2 w-2 rounded-full ${
-                        answers[testData.questions[idx].questionId]
-                          ? 'bg-green-500'
-                          : idx === currentQuestion
+                      className={`h-2 w-2 rounded-full ${answers[testData.questions[idx].questionId]
+                        ? 'bg-green-500'
+                        : idx === currentQuestion
                           ? 'bg-[#2E58A6]'
                           : 'bg-gray-300'
-                      }`}
+                        }`}
                     />
                   ))}
                 </div>
