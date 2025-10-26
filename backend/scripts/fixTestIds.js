@@ -10,7 +10,7 @@
 
 const mongoose = require('mongoose');
 
-const MONGO_URI = "mongodb+srv://pratyush:eZyVgAbkhBf50KLR@faces-data.mwhisr6.mongodb.net/?retryWrites=true&w=majority&appName=faces-data";
+const MONGO_URI = process.env.MONGO_URI
 
 // Collection names
 const collections = {
