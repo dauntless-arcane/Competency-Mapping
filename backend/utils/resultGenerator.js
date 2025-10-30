@@ -1,6 +1,8 @@
 const Question = require('../models/questionsSchema');
 const Result = require('../models/ResultSchema');
 const Test = require('../models/TestsSchema');
+const SurveyResponse = require('../models/suvey-response');
+const mongoose = require('mongoose'); // ✅ ADD THIS LINE FIRST
 
 /**
  * Simple psychometric result generator:
