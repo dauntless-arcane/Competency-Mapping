@@ -21,13 +21,10 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install dependencies
-        working-directory: ./
-        run: npm ci
+      - name: Install dependencies (ignore peer conflicts)
+        run: npm ci --legacy-peer-deps
 
-      - name: Release Frontend
-        working-directory: ./
+      - name: Frontend Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          npx semantic-release --tag-format "frontend-v${version}" --branches main
+        run: npx semantic-release --tag-format "frontend-v${version}" --branches main
