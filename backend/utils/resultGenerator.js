@@ -88,6 +88,11 @@ async function generateResultFromSurvey(surveyResponse) {
     overallSummary: summary,
     traitBreakdown
   });
+  await SurveyResponse.updateOne(
+  { _id: new mongoose.Types.ObjectId(attemptId) },
+  { $set: { scores } } // directly store calculated scores
+);
+
 
   console.log(`✅ [local] Result generated for ${username} (${surveyId})`);
   return result;
