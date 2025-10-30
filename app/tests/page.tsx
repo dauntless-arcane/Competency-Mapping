@@ -1,5 +1,5 @@
 'use client';
-
+import { MainLayout } from '@/components/layout/main-layout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -184,6 +184,7 @@ export default function TestsPage() {
   }
 
   return (
+    <MainLayout>
     <div className="space-y-6 p-6 bg-[#F2E5D8]">
       {/* Header */}
       <div>
@@ -278,5 +279,6 @@ export default function TestsPage() {
         </TabsContent>
       </Tabs>
     </div>
+    </MainLayout>
   );
 }
