@@ -27,4 +27,4 @@ jobs:
       - name: Frontend Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release --tag-format "frontend-v${version}" --branches main
+        run: npx semantic-release --tag-format 'frontend-v${version}' --branches main
