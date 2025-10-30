@@ -1,0 +1,33 @@
+name: Frontend Release
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'backend/**' # ignore backend changes
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        working-directory: ./
+        run: npm ci
+
+      - name: Release Frontend
+        working-directory: ./
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npx semantic-release --tag-format "frontend-v${version}" --branches main
