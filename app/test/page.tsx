@@ -8,6 +8,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { AlertCircle, ArrowLeft, ArrowRight, Brain, CheckCircle, Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:3010/api';
 
@@ -137,6 +138,13 @@ export default function TestPage() {
       ...prev,
       [testData.questions[currentQuestion].questionId]: numericValue,
     }));
+    setTimeout(() => {
+      if (currentQuestion < testData.questions.length - 1) {
+        setCurrentQuestion((prev) => prev + 1);
+      } else {
+        setIsComplete(true);
+      }
+    }, 20);
   };
 
   const handleNext = () => {
@@ -196,7 +204,7 @@ export default function TestPage() {
 
     // Mark as complete
     setIsComplete(true);
-};
+  };
 
   // Loading state
   if (loading) {
@@ -330,105 +338,94 @@ export default function TestPage() {
           </CardHeader>
 
           <CardContent className="space-y-6 p-6">
-            <div className="space-y-4">
-              <div className="p-5 bg-gradient-to-br from-[#F2E5D8] to-[#E8D5C4] rounded-lg border-l-4 border-[#C6902A]">
-                <h3 className="text-lg font-semibold text-[#032B61] mb-3 leading-relaxed">
-                  {currentQ.text}
-                </h3>
-              </div>
+            <AnimatePresence mode="wait">
+  <motion.div
+    key={currentQ.questionId}
+    initial={{ opacity: 0, x: 50 }}
+    animate={{ opacity: 1, x: 0 }}
+    exit={{ opacity: 0, x: -50 }}
+    transition={{ duration: 0.3, ease: 'easeInOut' }}
+    className="space-y-6"
+  >
+    {/* Question */}
+    <div className="p-5 bg-gradient-to-br from-[#F2E5D8] to-[#E8D5C4] rounded-lg border-l-4 border-[#C6902A]">
+      <h3 className="text-lg font-semibold text-[#032B61] mb-3 leading-relaxed">
+        {currentQ.text}
+      </h3>
+    </div>
 
-              <RadioGroup
-                value={answers[currentQ.questionId]?.toString() || ''}
-                onValueChange={handleAnswerChange}
-                className="space-y-3"
-              >
-                {currentQ.options.map((option, index) => (
-                  <div
-                    key={option._id}
-                    className={`flex items-center space-x-3 p-4 rounded-lg border-2 transition-all ${answers[currentQ.questionId] === option.value
-                      ? 'border-[#2E58A6] bg-[#2E58A6]/5'
-                      : 'border-gray-200 hover:border-[#6B86B4] hover:bg-[#F2E5D8]/30'
-                      }`}
-                  >
-                    <RadioGroupItem
-                      value={option.value.toString()}
-                      id={`option-${index}`}
-                      className="border-[#2E58A6]"
-                    />
-                    <Label
-                      htmlFor={`option-${index}`}
-                      className="text-[#032B61] cursor-pointer flex-1 font-medium"
-                    >
-                      {option.label}
-                    </Label>
-                  </div>
-                ))}
-              </RadioGroup>
-            </div>
+    {/* Options */}
+    <RadioGroup
+      value={answers[currentQ.questionId]?.toString() ?? ''}
+      onValueChange={(value) => {
+        const numericValue = parseInt(value, 10);
+        setAnswers((prev) => ({
+          ...prev,
+          [currentQ.questionId]: numericValue,
+        }));
 
-            <div className="flex justify-between pt-6 border-t border-gray-200">
-              <Button
-                variant="outline"
-                onClick={handlePrevious}
-                disabled={currentQuestion === 0}
-                className="border-[#6B86B4] text-[#6B86B4] hover:bg-[#6B86B4] hover:text-white disabled:opacity-50"
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Previous
-              </Button>
+        // ✅ Auto move to next with smooth animation
+        setTimeout(() => {
+          if (currentQuestion < testData.questions.length - 1) {
+            setCurrentQuestion((prev) => prev + 1);
+          } else {
+            setIsComplete(true);
+          }
+        }, 250);
+      }}
+      className="space-y-3"
+    >
+      {currentQ.options.map((option, index) => (
+        <label
+          key={option._id}
+          htmlFor={`option-${index}`}
+          className={`flex items-center space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer ${
+            answers[currentQ.questionId] === option.value
+              ? 'border-[#2E58A6] bg-[#2E58A6]/5'
+              : 'border-gray-200 hover:border-[#6B86B4] hover:bg-[#F2E5D8]/30'
+          }`}
+        >
+          <RadioGroupItem
+            value={option.value.toString()}
+            id={`option-${index}`}
+            className="border-[#2E58A6]"
+          />
+          <span className="text-[#032B61] font-medium flex-1">{option.label}</span>
+        </label>
+      ))}
+    </RadioGroup>
 
-              <div className="flex gap-2">
-                {/* Clear current answer */}
-                <Button
-                  variant="destructive"
-                  onClick={() => {
-                    const qId = testData?.questions[currentQuestion].questionId;
-                    if (qId) {
-                      setAnswers(prev => {
-                        const copy = { ...prev };
-                        delete copy[qId];
-                        return copy;
-                      });
-                    }
-                  }}
-                  className="text-white border-red-600 hover:bg-red-700 bg-red-600"
-                >
-                  Clear
-                </Button>
+    {/* Buttons */}
+    <div className="flex justify-between pt-6 border-t border-gray-200">
+      <Button
+        variant="outline"
+        onClick={() => setCurrentQuestion((p) => Math.max(0, p - 1))}
+        disabled={currentQuestion === 0}
+        className="border-[#6B86B4] text-[#6B86B4] hover:bg-[#6B86B4] hover:text-white disabled:opacity-50"
+      >
+        <ArrowLeft className="h-4 w-4 mr-2" />
+        Previous
+      </Button>
 
-                <Button
-                  onClick={handleNext}
-                  disabled={!answers[testData.questions[currentQuestion].questionId]}
-                  className="bg-[#2E58A6] hover:bg-[#032B61] text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {currentQuestion === testData.questions.length - 1 ? 'Finish' : 'Next'}
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </Button>
-              </div>
-            </div>
+      <div className="flex gap-2">
+        <Button
+          onClick={() =>
+            currentQuestion < testData.questions.length - 1
+              ? setCurrentQuestion((p) => p + 1)
+              : setIsComplete(true)
+          }
+          disabled={answers[currentQ.questionId] === undefined}
+          className="bg-[#2E58A6] hover:bg-[#032B61] text-white disabled:opacity-50"
+        >
+          {currentQuestion === testData.questions.length - 1 ? 'Finish' : 'Next'}
+          <ArrowRight className="h-4 w-4 ml-2" />
+        </Button>
+      </div>
+    </div>
+  </motion.div>
+</AnimatePresence>
 
 
-            {/* Progress indicator */}
-            <div className="pt-4 border-t border-gray-100">
-              <div className="flex justify-between items-center">
-                <p className="text-xs text-[#6B86B4]">
-                  Answered: {answeredQuestions} / {testData.questions.length}
-                </p>
-                <div className="flex gap-1">
-                  {testData.questions.map((_, idx) => (
-                    <div
-                      key={idx}
-                      className={`h-2 w-2 rounded-full ${answers[testData.questions[idx].questionId]
-                        ? 'bg-green-500'
-                        : idx === currentQuestion
-                          ? 'bg-[#2E58A6]'
-                          : 'bg-gray-300'
-                        }`}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
           </CardContent>
         </Card>
       </div>
