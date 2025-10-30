@@ -23,6 +23,15 @@ jobs:
 
       - name: Install dependencies (ignore peer conflicts)
         run: npm ci --legacy-peer-deps
+      - name: Ensure Semantic Release and plugins are installed
+        run: |
+          npm install --save-dev \
+          semantic-release \
+          @semantic-release/git \
+          @semantic-release/github \
+          @semantic-release/changelog \
+          @semantic-release/commit-analyzer \
+          @semantic-release/release-notes-generator --legacy-peer-deps
 
       - name: Frontend Release
         env:
