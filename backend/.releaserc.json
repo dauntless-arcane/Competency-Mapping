@@ -1,4 +1,5 @@
-{
+ {
+  "repositoryUrl": "https://github.com/dauntless-arcane/Competency-Mapping.git",
   "branches": ["main"],
   "tagFormat": "backend-v${version}",
   "plugins": [
