@@ -1,33 +1,32 @@
-name: 🚀 Backend Semantic Release
+name: Backend Release
 
 on:
   push:
     branches:
       - main
     paths:
-      - '/tree/main/backend**'  # only run when backend files change
+      - 'backend/**' # ✅ only trigger if something inside backend/ changes
 
 jobs:
   release:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
     steps:
-      - name: 🧩 Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: ⚙️ Setup Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: 📦 Install dependencies
-        run: npm ci
+      - name: Install dependencies
+        working-directory: ./backend
+        run: npm ci --legacy-peer-deps
 
-      - name: 🧠 Semantic Release
+      - name: Run Semantic Release for Backend
+        working-directory: ./backend
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release
+        run: npx semantic-release --tag-format 'backend-v${version}' --branches main
