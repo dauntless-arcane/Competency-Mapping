@@ -1,6 +1,8 @@
 const Question = require('../models/questionsSchema');
 const Result = require('../models/ResultSchema');
 const Test = require('../models/TestsSchema');
+const SurveyResponse = require('../models/suvey-response');
+const mongoose = require('mongoose'); // ✅ ADD THIS LINE FIRST
 
 /**
  * Simple psychometric result generator:
@@ -88,6 +90,11 @@ async function generateResultFromSurvey(surveyResponse) {
     overallSummary: summary,
     traitBreakdown
   });
+  await SurveyResponse.updateOne(
+  { _id: new mongoose.Types.ObjectId(attemptId) },
+  { $set: { scores } } // directly store calculated scores
+);
+
 
   console.log(`✅ [local] Result generated for ${username} (${surveyId})`);
   return result;
