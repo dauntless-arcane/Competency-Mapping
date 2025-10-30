@@ -5,15 +5,12 @@ on:
     branches:
       - backend
     paths:
-      - 'backend/**'
+      - '**' # watch all files (since everything is in root)
       - '.github/workflows/backend-release.yml'
 
 jobs:
   release:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
 
     steps:
       - name: Checkout repository
@@ -30,4 +27,4 @@ jobs:
       - name: Run Semantic Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release
+        run: npx semantic-release --repository-url "https://github.com/${{ github.repository }}"
