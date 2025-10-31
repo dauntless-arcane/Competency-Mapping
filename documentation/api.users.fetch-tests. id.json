@@ -1,0 +1,69 @@
+// This is the response that you will get when you reques
+// id has to be passed to get the all the details of the test
+{
+    "status": true,
+    "error": false,
+    "count": 1,
+    "data": [
+        {
+            "surveyId": "6685B19",
+            "categories": [
+                {
+                    "name": "Extroversion"
+                },
+                {
+                    "name": "Openness"
+                }
+            ],
+            "description": "A sample personality test for demo",
+            "name": "Personality Test",
+            "questions": [
+                {
+                    "_id": "68fcd216694d97510863388d",
+                    "surveyId": "6685B19",
+                    "questionId": "10D64C0",
+                    "text": "I enjoy large social gatherings.",
+                    "options": [
+                        {
+                            "value": 1,
+                            "label": "Strongly Disagree",
+                            "_id": "68fcd216694d97510863388e"
+                        },
+                        {
+                            "value": 5,
+                            "label": "Strongly Agree",
+                            "_id": "68fcd216694d97510863388f"
+                        }
+                    ],
+                    "trait": "Extroversion",
+                    "reversedScore": "false",
+                    "__v": 0
+                },
+                {
+                    "_id": "68fcd216694d975108633890",
+                    "surveyId": "6685B19",
+                    "questionId": "C70ECB6",
+                    "text": "I prefer solitude to company.",
+                    "options": [
+                        {
+                            "value": 1,
+                            "label": "Strongly Disagree",
+                            "_id": "68fcd216694d975108633891"
+                        },
+                        {
+                            "value": 5,
+                            "label": "Strongly Agree",
+                            "_id": "68fcd216694d975108633892"
+                        }
+                    ],
+                    "trait": "Extroversion",
+                    "reversedScore": "true",
+                    "__v": 0
+                }
+            ],
+            "scoringMethod": "average",
+            "totalQuestions": 2,
+            "updatedAt": "2025-10-25T17:44:18.064Z"
+        }
+    ]
+}

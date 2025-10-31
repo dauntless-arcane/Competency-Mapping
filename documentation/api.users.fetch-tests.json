@@ -1,0 +1,28 @@
+// this is the detail of all the tests to be perfomed and no need to pass any thing other than auth headres
+// for now everything is allowed no passing of headers too
+{
+    "status": true,
+    "error": false,
+    "data": [
+        {
+            "surveyId": "FA138D2",
+            "description": "A sample personality test for demo"
+        },
+        {
+            "surveyId": "6685B19",
+            "description": "A sample personality test for demo"
+        },
+        {
+            "surveyId": "8C4D505",
+            "description": "A sample personality test for demo"
+        },
+        {
+            "surveyId": "0938735",
+            "description": "A sample personality test for demo"
+        },
+        {
+            "surveyId": "17C7CB6",
+            "description": "Measures five major personality traits: Openness, Conscientiousness, Extraversion, Agreeableness, and Neuroticism. Based on IPIP representation of the NEO-PI-R from personality-testing.info / ipip.ori.org."
+        }
+    ]
+}
