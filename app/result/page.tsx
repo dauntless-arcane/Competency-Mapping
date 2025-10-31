@@ -7,8 +7,8 @@ import { AlertCircle, Filter, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-interface Test {
-  surveyId: string;
+interface Results {
+  resultId: string;
   name: string;
   level?: string;
   dateAttempted: string;
@@ -18,7 +18,7 @@ interface Test {
 interface ApiResponse {
   status: boolean;
   error: boolean;
-  data: Test[];
+  data: Results[];
   message?: string;
 }
 
@@ -27,7 +27,7 @@ export default function ResultsPage() {
   const [filterLevel, setFilterLevel] = useState('all');
   const [filterDate, setFilterDate] = useState('');
   const [filterName, setFilterName] = useState('all');
-  const [tests, setTests] = useState<Test[]>([]);
+  const [tests, setTests] = useState<Results[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,30 +62,30 @@ export default function ResultsPage() {
 
   const uniqueLevels = Array.from(new Set(tests.map((t) => t.level).filter(Boolean)));
 
-  const TestCard = ({ test }: { test: Test }) => (
+  const TestCard = ({ result }: { result: Results }) => (
   <Card className="flex flex-col md:flex-row justify-between items-start md:items-center 
                    p-5 shadow-sm hover:shadow-md transition rounded-2xl border-0 bg-white">
     <div className="flex-1 min-w-0">
-      <CardTitle className="text-[#032B61] text-lg mb-1">{test.name}</CardTitle>
+      <CardTitle className="text-[#032B61] text-lg mb-1">{result.name}</CardTitle>
       <CardDescription className="text-[#6B86B4] text-sm">
-        Attempted on {new Date(test.dateAttempted).toLocaleDateString()}
+        Attempted on {new Date(result.dateAttempted).toLocaleDateString()}
       </CardDescription>
     </div>
 
     <div className="flex flex-col md:flex-row gap-4 items-end md:items-center text-sm text-[#032B61]">
       <div className="flex flex-col items-end">
         <span className="font-semibold text-[#2E58A6]">Score</span>
-        <span className="text-lg font-bold">{test.score}%</span>
+        <span className="text-lg font-bold">{result.score}%</span>
       </div>
 
       <div className="flex flex-col items-end">
         <span className="font-semibold text-[#2E58A6]">Level</span>
-        <span className="text-lg font-bold">{test.level || 'N/A'}</span>
+        <span className="text-lg font-bold">{result.level || 'N/A'}</span>
       </div>
       {/* Show More button */}
       <Button
         className="bg-[#2E58A6] hover:bg-[#032B61] text-white"
-        onClick={() => router.push(`/results?id=${test.surveyId}`)}
+        onClick={() => router.push(`/results?id=${result.resultId}`)}
       >
         Show More
       </Button>
@@ -194,7 +194,7 @@ export default function ResultsPage() {
           {/* Right: Result Cards */}
           <div className="flex-1 space-y-4">
             {filteredTests.length > 0 ? (
-              filteredTests.map((test) => <TestCard key={test.surveyId} test={test} />)
+              filteredTests.map((result) => <TestCard key={result.resultId} result={result} />)
             ) : (
               <Card className="p-8 text-center text-[#6B86B4] shadow-sm">
                 No results match your filter.
