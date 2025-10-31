@@ -12,7 +12,6 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -20,15 +19,27 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Configure git
+      - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Sync branch
+      - name: Merge into main
         run: |
-          BRANCH=$(echo "${GITHUB_REF#refs/heads/}")
-          git fetch origin main || true
-          git checkout main || git checkout -b main
-          git merge origin/$BRANCH --no-edit || true
+          BRANCH=${GITHUB_REF#refs/heads/}
+          echo "🔁 Syncing $BRANCH → main"
+
+          # Fetch everything safely
+          git fetch origin main $BRANCH
+
+          # Checkout main
+          git checkout main || git checkout -b main origin/main
+
+          # Merge the branch changes
+          git merge --no-edit origin/$BRANCH || echo "⚠️ Merge conflicts ignored"
+
+          # Commit a message showing where the changes came from
+          git commit --allow-empty -m "🔁 Sync from $BRANCH → main (auto-merge)"
+
+          # Push back to origin
           git push origin main
