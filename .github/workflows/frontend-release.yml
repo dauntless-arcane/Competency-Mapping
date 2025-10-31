@@ -1,30 +1,36 @@
-name: Frontend Release
+name: Sync frontend → main
 
 on:
   push:
     branches:
       - frontend
-    paths:
-      - '**'
-      - '.github/workflows/frontend-release.yml'
+
+permissions:
+  contents: write
 
 jobs:
-  release:
+  sync:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
         with:
-          node-version: 20
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Run Semantic Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release --repository-url "https://github.com/${{ github.repository }}"
+      - name: Merge frontend into main
+        run: |
+          echo "🔁 Syncing frontend → main"
+
+          git fetch origin main frontend
+          git checkout main || git checkout -b main origin/main
+          git merge --no-edit origin/frontend || echo "⚠️ Merge conflicts ignored"
+          
+          git commit --allow-empty -m "🔁 Sync from frontend → main (auto-merge)"
+          git push origin main
