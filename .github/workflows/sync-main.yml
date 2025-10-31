@@ -32,6 +32,7 @@ jobs:
           # Fetch everything safely
           git fetch origin main $BRANCH
 
+
           # Checkout main
           git checkout main || git checkout -b main origin/main
 
