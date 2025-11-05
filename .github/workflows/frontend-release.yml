@@ -1,9 +1,9 @@
-name: Backend Auto Release
+name: Frontend Auto Release
 
 on:
   push:
     branches:
-      - backend
+      - frontend
 
 permissions:
   contents: write
@@ -24,23 +24,23 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Generate new backend version tag
+      - name: Generate new frontend version tag
         id: tag
         run: |
-          echo "🏷️ Generating new backend version tag"
+          echo "🏷️ Generating new frontend version tag"
           git fetch --tags
-          latest_tag=$(git describe --tags --abbrev=0 --match "backend-v*" 2>/dev/null || echo "backend-v0.0.0")
+          latest_tag=$(git describe --tags --abbrev=0 --match "frontend-v*" 2>/dev/null || echo "frontend-v0.0.0")
 
           # Parse version numbers
-          version=${latest_tag#backend-v}
+          version=${latest_tag#frontend-v}
           major=$(echo $version | cut -d. -f1)
           minor=$(echo $version | cut -d. -f2)
           patch=$(echo $version | cut -d. -f3)
           new_patch=$((patch + 1))
-          new_tag="backend-v${major}.${minor}.${new_patch}"
+          new_tag="frontend-v${major}.${minor}.${new_patch}"
 
           echo "➡️ New tag: $new_tag"
-          git tag -a "$new_tag" -m "🔖 Auto backend release: $new_tag"
+          git tag -a "$new_tag" -m "🔖 Auto frontend release: $new_tag"
           git push origin "$new_tag"
           echo "tag=$new_tag" >> $GITHUB_OUTPUT
 
@@ -50,6 +50,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
-          release_name: "🚀 Backend Release ${{ steps.tag.outputs.tag }}"
+          release_name: "🚀 Frontend Release ${{ steps.tag.outputs.tag }}"
           body: |
-            Automated backend release created from backend branch push.
+            Automated frontend release created from frontend branch push.
