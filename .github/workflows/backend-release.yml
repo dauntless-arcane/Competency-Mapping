@@ -34,3 +34,34 @@ jobs:
           git add -A
           git commit -m "🔁 Auto-sync backend → main (resolved merge conflicts)" || echo "✅ Nothing to commit"
           git push origin main || echo "✅ Nothing to push"
+
+      - name: Create new backend release tag
+        id: tag
+        run: |
+          echo "🏷️ Generating new backend version tag"
+          git fetch --tags
+          latest_tag=$(git describe --tags --abbrev=0 --match "backend-v*" 2>/dev/null || echo "backend-v0.0.0")
+
+          # Parse version numbers
+          version=${latest_tag#backend-v}
+          major=$(echo $version | cut -d. -f1)
+          minor=$(echo $version | cut -d. -f2)
+          patch=$(echo $version | cut -d. -f3)
+          new_patch=$((patch + 1))
+          new_tag="backend-v${major}.${minor}.${new_patch}"
+
+          echo "➡️ New tag: $new_tag"
+          git tag -a "$new_tag" -m "🔖 Auto backend release: $new_tag"
+          git push origin "$new_tag"
+          echo "tag=$new_tag" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          release_name: "🚀 Backend Release ${{ steps.tag.outputs.tag }}"
+          body: |
+            Automated backend release created from sync to main.
+            Changes merged from **backend** → **main**.
