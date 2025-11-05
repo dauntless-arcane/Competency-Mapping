@@ -1,15 +1,15 @@
-name: Sync frontend → main
+name: Backend Auto Release
 
 on:
   push:
     branches:
-      - frontend
+      - backend
 
 permissions:
   contents: write
 
 jobs:
-  sync:
+  release:
     runs-on: ubuntu-latest
 
     steps:
@@ -24,33 +24,32 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Merge frontend into main
+      - name: Generate new backend version tag
+        id: tag
         run: |
-          echo "🔁 Syncing frontend → main"
-          git fetch origin main frontend
-          git checkout main || git checkout -b main origin/main
-          git merge --no-edit origin/frontend || echo "⚠️ Merge conflicts ignored"
-          git commit --allow-empty -m "🔁 Sync from frontend → main (auto-merge)"
-          git push origin main
-
-      - name: Bump version and create tag
-        run: |
-          echo "🏷️ Creating new version tag"
-          # Fetch existing tags
+          echo "🏷️ Generating new backend version tag"
           git fetch --tags
-          # Get the latest tag or default to v0.0.0
-          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          echo "Latest tag: $latest_tag"
+          latest_tag=$(git describe --tags --abbrev=0 --match "backend-v*" 2>/dev/null || echo "backend-v0.0.0")
 
           # Parse version numbers
-          major=$(echo $latest_tag | cut -d. -f1 | sed 's/v//')
-          minor=$(echo $latest_tag | cut -d. -f2)
-          patch=$(echo $latest_tag | cut -d. -f3)
-
-          # Increment patch version
+          version=${latest_tag#backend-v}
+          major=$(echo $version | cut -d. -f1)
+          minor=$(echo $version | cut -d. -f2)
+          patch=$(echo $version | cut -d. -f3)
           new_patch=$((patch + 1))
-          new_tag="v${major}.${minor}.${new_patch}"
+          new_tag="backend-v${major}.${minor}.${new_patch}"
 
-          echo "➡️ New version: $new_tag"
-          git tag -a "$new_tag" -m "🔖 Auto version bump: $new_tag"
+          echo "➡️ New tag: $new_tag"
+          git tag -a "$new_tag" -m "🔖 Auto backend release: $new_tag"
           git push origin "$new_tag"
+          echo "tag=$new_tag" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          release_name: "🚀 Backend Release ${{ steps.tag.outputs.tag }}"
+          body: |
+            Automated backend release created from backend branch push.
