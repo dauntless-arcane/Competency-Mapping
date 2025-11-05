@@ -27,10 +27,30 @@ jobs:
       - name: Merge frontend into main
         run: |
           echo "🔁 Syncing frontend → main"
-
           git fetch origin main frontend
           git checkout main || git checkout -b main origin/main
           git merge --no-edit origin/frontend || echo "⚠️ Merge conflicts ignored"
-          
           git commit --allow-empty -m "🔁 Sync from frontend → main (auto-merge)"
           git push origin main
+
+      - name: Bump version and create tag
+        run: |
+          echo "🏷️ Creating new version tag"
+          # Fetch existing tags
+          git fetch --tags
+          # Get the latest tag or default to v0.0.0
+          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Latest tag: $latest_tag"
+
+          # Parse version numbers
+          major=$(echo $latest_tag | cut -d. -f1 | sed 's/v//')
+          minor=$(echo $latest_tag | cut -d. -f2)
+          patch=$(echo $latest_tag | cut -d. -f3)
+
+          # Increment patch version
+          new_patch=$((patch + 1))
+          new_tag="v${major}.${minor}.${new_patch}"
+
+          echo "➡️ New version: $new_tag"
+          git tag -a "$new_tag" -m "🔖 Auto version bump: $new_tag"
+          git push origin "$new_tag"
