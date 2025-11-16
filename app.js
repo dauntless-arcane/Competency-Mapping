@@ -27,6 +27,8 @@ app.use(function(req, res, next) {
     //     return res.sendStatus(401)
     // }
 })
+app.use("/auth", require('./auth/login'))
+app.use("/auth/sign-up", require('./auth/registeration'))
 // api setup
 app.use("/api/admin", require('./admin/routing'))
 
