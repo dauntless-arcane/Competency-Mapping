@@ -25,7 +25,7 @@ const studentNavItems = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
   { name: 'My Courses', href: '/courses', icon: BookOpen },
   { name: 'Tests', href: '/tests', icon: Brain },
-  { name: 'Results', href: '/results', icon: BarChart3 },
+  { name: 'Results', href: '/result', icon: BarChart3 },
   { name: 'Reports', href: '/reports', icon: FileText },
 ];
 

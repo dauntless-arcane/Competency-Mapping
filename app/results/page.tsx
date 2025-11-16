@@ -1,12 +1,12 @@
 'use client';
 
 import { MainLayout } from '@/components/layout/main-layout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { mockScores } from '@/lib/mock-data';
-import { Download, TrendingUp, AlertCircle, CheckCircle, Target } from 'lucide-react';
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
+import { AlertCircle, CheckCircle, Download, Target, TrendingUp } from 'lucide-react';
+import { PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart, ResponsiveContainer } from 'recharts';
 
 export default function ResultsPage() {
   const chartData = mockScores.map(score => ({
