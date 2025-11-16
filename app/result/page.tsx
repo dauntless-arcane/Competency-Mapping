@@ -12,13 +12,13 @@ interface Results {
   name: string;
   level?: string;
   dateAttempted: string;
-  score: number;
 }
 
 interface ApiResponse {
-  status: boolean;
-  error: boolean;
-  data: Results[];
+  Status: boolean;
+  Error: boolean;
+  Count: number;
+  Data: Results[];
   message?: string;
 }
 
@@ -36,13 +36,13 @@ export default function ResultsPage() {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch('http://localhost:3010/api/users/fetch-tests', {
+        const response = await fetch('http://localhost:3010/api/users/result/testuser/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         });
         if (!response.ok) throw new Error(`Server error: ${response.status}`);
         const result: ApiResponse = await response.json();
-        if (result.status && !result.error && result.data) setTests(result.data);
+        if (result.Status && !result.Error && result.Data) setTests(result.Data);
         else throw new Error(result.message || 'Invalid response from server');
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch tests');
@@ -75,7 +75,7 @@ export default function ResultsPage() {
     <div className="flex flex-col md:flex-row gap-4 items-end md:items-center text-sm text-[#032B61]">
       <div className="flex flex-col items-end">
         <span className="font-semibold text-[#2E58A6]">Score</span>
-        <span className="text-lg font-bold">{result.score}%</span>
+        <span className="text-lg font-bold">{0}%</span>
       </div>
 
       <div className="flex flex-col items-end">
