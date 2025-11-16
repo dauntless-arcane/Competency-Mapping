@@ -1,3 +1,4 @@
+// routes/auth.js
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
@@ -9,335 +10,439 @@ const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 const Joi = require('joi');
 const { v4: uuidv4 } = require('uuid');
-const crypto = require('crypto');
+const UAParser = require('ua-parser-js');
 
-const userSchema = require('../models/Login'); // updated user schema
+const User = require('../models/Login');
 const LoginLog = require('../models/LoginLog');
 const RefreshToken = require('../models/RefreshToken');
 
 const router = express.Router();
 
-// basic env checks
-if (!process.env.JWT_SECRET) {
-  throw new Error('JWT_SECRET missing from environment');
-}
+// ------------------ SANITY CHECK ------------------
+if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET missing from .env");
 
-// Security middlewares (router-level — still apply app-level too)
+// ------------------ SECURITY ------------------
 router.use(helmet());
 router.use(express.json({ limit: '10kb' }));
 router.use(cookieParser());
-const FRONTEND = process.env.FRONTEND_ORIGIN || '*';
-router.use(cors({ origin: FRONTEND, credentials: true }));
+router.use(cors({ origin: process.env.FRONTEND_ORIGIN || "*", credentials: true }));
 
-// simple rate limiter
-const limiter = rateLimit({
+router.use(rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,
-  message: { Status: false, Error: true, Msg: 'Too many requests' }
-});
-router.use(limiter);
+  message: { Status: false, Error: true, Msg: "Too many requests" }
+}));
 
-// Models
-const User = require('../models/Login');
-
-// ---------- helpers ----------
+// ------------------ HELPERS ------------------
 function getIp(req) {
-  return req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  const fwd = req.headers["x-forwarded-for"];
+  if (fwd) return String(fwd).split(",")[0].trim();
+  return req.socket.remoteAddress;
 }
+
 async function saveLog({ username, ip, success, message, userAgent }) {
   try {
     await LoginLog.create({ username, ip, status: success, message, userAgent });
-  } catch (err) {
-    console.error('Failed to save login log', err);
-  }
+  } catch { }
 }
+
 function signAccessToken(user) {
-  return jwt.sign({ id: user._id, username: user.username, roles: user.roles }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_ACCESS_EXPIRES || '15m' });
+  return jwt.sign(
+    { id: user._id, username: user.username, roles: user.roles },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_ACCESS_EXPIRES || "15m" }
+  );
 }
+
 function signRefreshToken(tokenId, user) {
-  return jwt.sign({ id: user._id, username: user.username, jti: tokenId }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_REFRESH_EXPIRES || '30d' });
+  return jwt.sign(
+    { id: user._id, username: user.username, jti: tokenId },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES || "30d" }
+  );
 }
+
 function parseDuration(d) {
   if (!d) return 0;
-  if (typeof d === 'number') return d;
-  if (d.endsWith('ms')) return parseInt(d.slice(0, -2));
-  if (d.endsWith('s')) return parseInt(d.slice(0, -1)) * 1000;
-  if (d.endsWith('m')) return parseInt(d.slice(0, -1)) * 60 * 1000;
-  if (d.endsWith('h')) return parseInt(d.slice(0, -1)) * 60 * 60 * 1000;
-  if (d.endsWith('d')) return parseInt(d.slice(0, -1)) * 24 * 60 * 60 * 1000;
+  if (typeof d === "number") return d;
+  if (d.endsWith("ms")) return parseInt(d);
+  if (d.endsWith("s")) return parseInt(d) * 1000;
+  if (d.endsWith("m")) return parseInt(d) * 60 * 1000;
+  if (d.endsWith("h")) return parseInt(d) * 60 * 60 * 1000;
+  if (d.endsWith("d")) return parseInt(d) * 24 * 60 * 60 * 1000;
   return parseInt(d);
 }
-function parseDurationMillis(d){ return parseDuration(d); }
+const parseDurationMillis = parseDuration;
 
-// ---------- validation ----------
-const loginSchema = Joi.object({ username: Joi.string().min(3).max(50).required(), password: Joi.string().min(6).max(1024).required() });
-const forgotSchema = Joi.object({ username: Joi.string().min(3).max(50).required(), dob: Joi.date().required() });
-const resetSchema = Joi.object({ username: Joi.string().min(3).max(50).required(), otp: Joi.string().length(6).required(), newPassword: Joi.string().min(6).required() });
+// ----------------- Device Parsing -----------------
+function parseDeviceFromReq(req) {
+  const ua = req.get("User-Agent") || "";
+  const parser = new UAParser(ua);
+  const r = parser.getResult();
 
-// lockout settings
+  return {
+    deviceName: r.device.vendor || "Unknown",
+    deviceType: r.device.type || "desktop",
+    os: r.os.name || "Unknown",
+    browser: r.browser.name || "Unknown",
+    userAgent: ua
+  };
+}
+
+// ----------------- Suspicious-Detection Logic -----------------
+function isSuspicious(dbToken, ip, ua) {
+  const mode = (process.env.SUSPICIOUS_MODE || "strict").toLowerCase();
+
+  const sameIp = dbToken.ip === ip;
+  const sameUA = dbToken.userAgent === ua;
+
+  if (mode === "off") return false;
+
+  if (mode === "loose") {
+    return !sameIp && !sameUA; // both differ
+  }
+
+  // strict = block if ANY mismatch
+  return !sameIp || !sameUA;
+}
+
+// ---------------- Validation ----------------
+const loginSchema = Joi.object({
+  username: Joi.string().min(3).max(100).required(),
+  password: Joi.string().min(6).max(1024).required()
+});
+
+const forgotSchema = Joi.object({
+  username: Joi.string().min(3).max(100).required(),
+  dob: Joi.date().required()
+});
+
+const resetSchema = Joi.object({
+  username: Joi.string().min(3).max(100).required(),
+  otp: Joi.string().length(6).required(),
+  newPassword: Joi.string().min(6).required()
+});
+
+// ---------------- Account Lock Settings ----------------
 const MAX_FAILED = 5;
 const LOCK_TIME_MS = 15 * 60 * 1000;
 
 async function recordFailedLogin(user) {
   try {
-    user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
+    user.failedLoginAttempts++;
     if (user.failedLoginAttempts >= MAX_FAILED) {
       user.lockUntil = Date.now() + LOCK_TIME_MS;
     }
     await user.save();
-  } catch (err) { console.error('Failed update failed attempts', err); }
+  } catch { }
 }
+
 async function resetFailedLogin(user) {
-  try {
-    user.failedLoginAttempts = 0;
-    user.lockUntil = undefined;
-    await user.save();
-  } catch (err) { console.error('Failed reset failed attempts', err); }
+  user.failedLoginAttempts = 0;
+  user.lockUntil = undefined;
+  await user.save();
 }
 
-// ---------- role middleware ----------
-function requireRole(requiredRole) {
-  return (req, res, next) => {
-    const authHeader = req.headers.authorization || '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-    if (!token) return res.status(401).json({ Status: false, Error: true, Msg: 'Unauthorized' });
-    try {
-      const payload = jwt.verify(token, process.env.JWT_SECRET);
-      req.user = payload;
-      if (!payload.roles || !payload.roles.includes(requiredRole)) {
-        return res.status(403).json({ Status: false, Error: true, Msg: 'Forbidden' });
-      }
-      next();
-    } catch (err) {
-      return res.status(401).json({ Status: false, Error: true, Msg: 'Invalid token' });
-    }
-  };
-}
+// ---------------- Auth Middleware ----------------
+function authenticate(req, res, next) {
+  const auth = req.headers.authorization || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+  if (!token) return res.status(401).json({ Status: false, Msg: "Unauthorized" });
 
-// ---------- routes ----------
-
-// Protected test
-router.get('/protected', (req, res) => {
-  const authHeader = req.headers.authorization || '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-  if (!token) return res.status(401).json({ Status: false, Error: true, Msg: 'Unauthorized' });
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
-    return res.json({ Status: true, Error: false, Msg: 'Access OK', user: payload });
-  } catch (err) {
-    return res.status(401).json({ Status: false, Error: true, Msg: 'Invalid token' });
+    req.user = payload;
+    return next();
+  } catch {
+    return res.status(401).json({ Status: false, Msg: "Invalid token" });
   }
-});
+}
 
-// LOGIN
-router.post('/login', async (req, res) => {
+// =========================================================
+// ======================= LOGIN ===========================
+// =========================================================
+
+router.post("/login", async (req, res) => {
   const ip = getIp(req);
-  const userAgent = req.get('User-Agent') || '';
+  const ua = req.get("User-Agent") || "";
+
   try {
     const { error, value } = loginSchema.validate(req.body);
-    if (error) {
-      await saveLog({ username: req.body.username, ip, success: false, message: 'Validation error', userAgent });
-      return res.status(400).json({ Status: false, Error: true, Msg: 'Invalid input' });
-    }
+    if (error)
+      return res.status(400).json({ Status: false, Msg: "Invalid input" });
+
     const { username, password } = value;
+
     const user = await User.findOne({ username });
-    if (!user) {
-      await saveLog({ username, ip, success: false, message: 'User not found', userAgent });
-      return res.status(401).json({ Status: false, Error: true, Msg: 'Invalid credentials' });
-    }
+    if (!user)
+      return res.status(401).json({ Status: false, Msg: "Invalid credentials" });
+
     if (user.lockUntil && user.lockUntil > Date.now()) {
-      await saveLog({ username, ip, success: false, message: 'Account locked', userAgent });
-      return res.status(423).json({ Status: false, Error: true, Msg: 'Account temporarily locked. Try later.' });
+      return res.status(423).json({ Status: false, Msg: "Account locked. Try later." });
     }
+
     const passwordOk = await bcrypt.compare(password, user.passwordHash);
     if (!passwordOk) {
       await recordFailedLogin(user);
-      await saveLog({ username, ip, success: false, message: 'Incorrect password', userAgent });
-      return res.status(401).json({ Status: false, Error: true, Msg: 'Invalid credentials' });
+      return res.status(401).json({ Status: false, Msg: "Invalid credentials" });
     }
+
     await resetFailedLogin(user);
 
-    // issue tokens and store refresh token
+    // Device info + session creation
     const tokenId = uuidv4();
+    const deviceId = uuidv4();
     const accessToken = signAccessToken(user);
     const refreshTokenJwt = signRefreshToken(tokenId, user);
-    const refreshDoc = await RefreshToken.create({
-      tokenId, userId: user._id, username: user.username,
-      expiresAt: new Date(Date.now() + parseDuration(process.env.JWT_REFRESH_EXPIRES || '30d')),
-      ip, userAgent
+
+    const d = parseDeviceFromReq(req);
+
+    await RefreshToken.create({
+      tokenId,
+      userId: user._id,
+      username: user.username,
+      deviceId,
+      deviceName: d.deviceName,
+      deviceType: d.deviceType,
+      os: d.os,
+      browser: d.browser,
+      ip,
+      userAgent: d.userAgent,
+      expiresAt: new Date(Date.now() + parseDuration(process.env.JWT_REFRESH_EXPIRES || "30d"))
     });
 
-    await saveLog({ username: user.username, ip, success: true, message: 'Login success', userAgent });
-
-    res.cookie('refreshToken', refreshTokenJwt, {
+    // set cookie
+    res.cookie("refreshToken", refreshTokenJwt, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: parseDurationMillis(process.env.JWT_REFRESH_EXPIRES || '30d')
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: parseDurationMillis(process.env.JWT_REFRESH_EXPIRES || "30d")
     });
 
     return res.json({
-      Status: true, Error: false, Msg: 'Login successful',
-      Token: accessToken, refreshTokenId: tokenId,
-      User: { username: user.username, name: user.name, class: user.class, section: user.section, rollNo: user.rollNo, roles: user.roles }
+      Status: true,
+      Msg: "Login successful",
+      Token: accessToken,
+      refreshTokenId: tokenId,
+      deviceId,
+      User: {
+        username: user.username,
+        name: user.name,
+        class: user.class,
+        section: user.section,
+        rollNo: user.rollNo,
+        roles: user.roles
+      }
     });
 
   } catch (err) {
-    console.error('Login error', err);
-    await saveLog({ username: req.body?.username, ip: getIp(req), success: false, message: 'Server error', userAgent: req.get('User-Agent') || '' });
-    return res.status(500).json({ Status: false, Error: true, Msg: 'Server error' });
+    return res.status(500).json({ Status: false, Msg: "Server error" });
   }
 });
 
-// REFRESH (rotate)
-router.post('/refresh', async (req, res) => {
+// =========================================================
+// ======================= REFRESH ==========================
+// =========================================================
+
+router.post("/refresh", async (req, res) => {
   const ip = getIp(req);
-  const userAgent = req.get('User-Agent') || '';
+  const ua = req.get("User-Agent") || "";
+
   try {
     const token = req.cookies?.refreshToken || req.body?.refreshToken;
-    if (!token) return res.status(401).json({ Status: false, Error: true, Msg: 'No refresh token' });
+    if (!token) return res.status(401).json({ Status: false, Msg: "No refresh token" });
+
     let payload;
-    try { payload = jwt.verify(token, process.env.JWT_SECRET); } catch (err) {
-      return res.status(401).json({ Status: false, Error: true, Msg: 'Invalid refresh token' });
-    }
-    const tokenId = payload.jti;
-    const dbToken = await RefreshToken.findOne({ tokenId });
+    try { payload = jwt.verify(token, process.env.JWT_SECRET); }
+    catch { return res.status(401).json({ Status: false, Msg: "Invalid refresh token" }); }
+
+    const dbToken = await RefreshToken.findOne({ tokenId: payload.jti });
+
     if (!dbToken || dbToken.revoked) {
-      if (dbToken && dbToken.userId) await RefreshToken.updateMany({ userId: dbToken.userId }, { revoked: true });
-      await saveLog({ username: payload.username, ip, success: false, message: 'Refresh token invalid/reuse', userAgent });
-      return res.status(401).json({ Status: false, Error: true, Msg: 'Refresh token invalid' });
+      if (dbToken?.userId) await RefreshToken.updateMany({ userId: dbToken.userId }, { revoked: true });
+      return res.status(401).json({ Status: false, Msg: "Refresh token invalid" });
     }
 
+    // ===================== Suspicious detection =====================
+    if (isSuspicious(dbToken, ip, ua)) {
+      await RefreshToken.updateMany({ userId: dbToken.userId }, { revoked: true });
+      res.clearCookie("refreshToken");
+      return res.status(401).json({
+        Status: false,
+        Msg: `Suspicious activity detected (${process.env.SUSPICIOUS_MODE}). Please login again.`
+      });
+    }
+
+    // rotate token
     const newTokenId = uuidv4();
-    const newRefreshJwt = signRefreshToken(newTokenId, { _id: payload.id, username: payload.username });
-    const newAccessToken = signAccessToken({ _id: payload.id, username: payload.username });
+    const newRefreshJwt = signRefreshToken(newTokenId, payload);
+    const newAccessToken = signAccessToken(payload);
 
     dbToken.revoked = true;
     dbToken.replacedByTokenId = newTokenId;
     await dbToken.save();
 
-    const expiresAt = new Date(Date.now() + parseDuration(process.env.JWT_REFRESH_EXPIRES || '30d'));
-    await RefreshToken.create({ tokenId: newTokenId, userId: dbToken.userId, username: dbToken.username, expiresAt, ip, userAgent });
-
-    res.cookie('refreshToken', newRefreshJwt, {
-      httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax',
-      maxAge: parseDurationMillis(process.env.JWT_REFRESH_EXPIRES || '30d')
+    await RefreshToken.create({
+      tokenId: newTokenId,
+      userId: dbToken.userId,
+      username: dbToken.username,
+      deviceId: dbToken.deviceId,
+      deviceName: dbToken.deviceName,
+      deviceType: dbToken.deviceType,
+      os: dbToken.os,
+      browser: dbToken.browser,
+      ip,
+      userAgent: ua,
+      expiresAt: new Date(Date.now() + parseDuration(process.env.JWT_REFRESH_EXPIRES || "30d"))
     });
 
-    await saveLog({ username: payload.username, ip, success: true, message: 'Refresh success', userAgent });
-    return res.json({ Status: true, Error: false, Msg: 'Token refreshed', Token: newAccessToken, refreshTokenId: newTokenId });
-  } catch (err) {
-    console.error('Refresh error', err);
-    return res.status(500).json({ Status: false, Error: true, Msg: 'Server error' });
+    res.cookie("refreshToken", newRefreshJwt, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: parseDurationMillis(process.env.JWT_REFRESH_EXPIRES || "30d")
+    });
+
+    return res.json({
+      Status: true,
+      Msg: "Token refreshed",
+      Token: newAccessToken,
+      refreshTokenId: newTokenId
+    });
+
+  } catch {
+    return res.status(500).json({ Status: false, Msg: "Server error" });
   }
 });
 
-// LOGOUT
-router.post('/logout', async (req, res) => {
-  const token = req.cookies?.refreshToken || req.body?.refreshToken;
-  const ip = getIp(req);
-  const userAgent = req.get('User-Agent') || '';
-  if (!token) return res.json({ Status: true, Error: false, Msg: 'Logged out (no token)' });
+// =========================================================
+// ================= ACTIVE SESSIONS ========================
+// =========================================================
+
+router.get("/sessions", authenticate, async (req, res) => {
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    const tokenId = payload.jti;
-    const dbToken = await RefreshToken.findOne({ tokenId });
-    if (dbToken) { dbToken.revoked = true; await dbToken.save(); }
-    res.clearCookie('refreshToken');
-    await saveLog({ username: payload.username, ip, success: true, message: 'Logout', userAgent });
-    return res.json({ Status: true, Error: false, Msg: 'Logged out' });
-  } catch (err) {
-    res.clearCookie('refreshToken');
-    return res.json({ Status: true, Error: false, Msg: 'Logged out' });
+    const userId = req.user.id;
+    const sessions = await RefreshToken.find({ userId, revoked: false })
+      .select("-_id deviceId deviceName deviceType os browser ip createdAt expiresAt tokenId");
+
+    return res.json({ Status: true, Sessions: sessions });
+  } catch {
+    return res.status(500).json({ Status: false, Msg: "Server error" });
   }
 });
 
-// ---------- FORGOT (verify username + DOB -> create OTP) ----------
-router.post('/forgot', async (req, res) => {
+// =========================================================
+// =================== LOGOUT DEVICE ========================
+// =========================================================
+
+router.post("/logout-device", authenticate, async (req, res) => {
+  try {
+    const { deviceId } = req.body;
+    if (!deviceId) return res.status(400).json({ Status: false, Msg: "deviceId required" });
+
+    const result = await RefreshToken.updateMany(
+      { userId: req.user.id, deviceId, revoked: false },
+      { revoked: true }
+    );
+
+    return res.json({ Status: true, Msg: "Device logged out", revokedCount: result.modifiedCount });
+  } catch {
+    return res.status(500).json({ Status: false, Msg: "Server error" });
+  }
+});
+
+// =========================================================
+// =================== LOGOUT ALL ===========================
+// =========================================================
+
+router.post("/logout-all", authenticate, async (req, res) => {
+  try {
+    const result = await RefreshToken.updateMany(
+      { userId: req.user.id, revoked: false },
+      { revoked: true }
+    );
+
+    res.clearCookie("refreshToken");
+
+    return res.json({
+      Status: true,
+      Msg: "Logged out from all devices",
+      revokedCount: result.modifiedCount
+    });
+  } catch {
+    return res.status(500).json({ Status: false, Msg: "Server error" });
+  }
+});
+
+// =========================================================
+// =================== FORGOT PASSWORD ======================
+// =========================================================
+
+router.post("/forgot", async (req, res) => {
   const ip = getIp(req);
-  const userAgent = req.get('User-Agent') || '';
+  const ua = req.get("User-Agent") || "";
+
   try {
     const { error, value } = forgotSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({ Status: false, Error: true, Msg: 'Invalid input' });
-    }
+    if (error) return res.status(400).json({ Status: false, Msg: "Invalid input" });
+
     const { username, dob } = value;
     const user = await User.findOne({ username });
-    if (!user) {
-      await saveLog({ username, ip, success: false, message: 'Forgot: user not found', userAgent });
-      return res.status(404).json({ Status: false, Error: true, Msg: 'User not found' });
-    }
-    // compare dob (allow only date match)
-    const providedDob = new Date(dob).toISOString().slice(0,10);
-    const storedDob = new Date(user.dob).toISOString().slice(0,10);
-    if (providedDob !== storedDob) {
-      await saveLog({ username, ip, success: false, message: 'Forgot: dob mismatch', userAgent });
-      return res.status(403).json({ Status: false, Error: true, Msg: 'DOB does not match' });
-    }
+    if (!user) return res.status(404).json({ Status: false, Msg: "User not found" });
 
-    // generate OTP (6 digits)
-    const otp = ('000000' + Math.floor(Math.random() * 1000000)).slice(-6);
-    const ttlMs = 10 * 60 * 1000; // 10 minutes
-    user.resetOtp = otp; // HASH in prod
-    user.resetOtpExpiresAt = new Date(Date.now() + ttlMs);
+    const inputDob = new Date(dob).toISOString().slice(0,10);
+    const storedDob = new Date(user.dob).toISOString().slice(0,10);
+
+    if (inputDob !== storedDob)
+      return res.status(403).json({ Status: false, Msg: "DOB mismatch" });
+
+    const otp = ("000000" + Math.floor(Math.random() * 1000000)).slice(-6);
+    user.resetOtp = otp;
+    user.resetOtpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
     await user.save();
 
-    await saveLog({ username, ip, success: true, message: 'Forgot OTP generated', userAgent });
+    return res.json({
+      Status: true,
+      Msg: "OTP generated",
+      OTP: otp,
+      expiresIn: 600
+    });
 
-    // In prod: send OTP via SMS/email. Here we return it for testing only.
-    return res.json({ Status: true, Error: false, Msg: 'OTP generated', OTP: otp, expiresInSeconds: ttlMs / 1000 });
-  } catch (err) {
-    console.error('Forgot error', err);
-    return res.status(500).json({ Status: false, Error: true, Msg: 'Server error' });
+  } catch {
+    return res.status(500).json({ Status: false, Msg: "Server error" });
   }
 });
 
-// RESET password using OTP
-router.post('/reset', async (req, res) => {
-  const ip = getIp(req);
-  const userAgent = req.get('User-Agent') || '';
+// =========================================================
+// =================== RESET PASSWORD ========================
+// =========================================================
+
+router.post("/reset", async (req, res) => {
   try {
     const { error, value } = resetSchema.validate(req.body);
-    if (error) return res.status(400).json({ Status: false, Error: true, Msg: 'Invalid input' });
+    if (error) return res.status(400).json({ Status: false, Msg: "Invalid input" });
 
     const { username, otp, newPassword } = value;
     const user = await User.findOne({ username });
-    if (!user) {
-      await saveLog({ username, ip, success: false, message: 'Reset: user not found', userAgent });
-      return res.status(404).json({ Status: false, Error: true, Msg: 'User not found' });
-    }
+    if (!user) return res.status(404).json({ Status: false, Msg: "User not found" });
 
-    if (!user.resetOtp || !user.resetOtpExpiresAt || new Date() > new Date(user.resetOtpExpiresAt)) {
-      await saveLog({ username, ip, success: false, message: 'Reset: otp expired/missing', userAgent });
-      return res.status(400).json({ Status: false, Error: true, Msg: 'OTP expired or not requested' });
-    }
+    if (!user.resetOtp || new Date() > new Date(user.resetOtpExpiresAt))
+      return res.status(400).json({ Status: false, Msg: "OTP expired" });
 
-    // compare OTP (in prod compare hashed)
-    if (user.resetOtp !== otp) {
-      await saveLog({ username, ip, success: false, message: 'Reset: otp mismatch', userAgent });
-      return res.status(403).json({ Status: false, Error: true, Msg: 'Invalid OTP' });
-    }
+    if (otp !== user.resetOtp)
+      return res.status(403).json({ Status: false, Msg: "Invalid OTP" });
 
-    // set new password
-    const saltRounds = parseInt(process.env.SALT_ROUNDS || '12', 10);
-    const newHash = await bcrypt.hash(newPassword, saltRounds);
-    user.passwordHash = newHash;
+    const hash = await bcrypt.hash(newPassword, 12);
+    user.passwordHash = hash;
     user.resetOtp = null;
     user.resetOtpExpiresAt = null;
     await user.save();
 
-    await saveLog({ username, ip, success: true, message: 'Reset: password changed', userAgent });
-    return res.json({ Status: true, Error: false, Msg: 'Password reset successful' });
+    return res.json({ Status: true, Msg: "Password reset successful" });
 
-  } catch (err) {
-    console.error('Reset error', err);
-    return res.status(500).json({ Status: false, Error: true, Msg: 'Server error' });
+  } catch {
+    return res.status(500).json({ Status: false, Msg: "Server error" });
   }
 });
-
-// An example admin-only endpoint demonstrating role middleware
-// router.get('/admin-only', requireRole('admin'), (req, res) => {
-//   res.json({ Status: true, Error: false, Msg: 'Welcome admin', user: req.user });
-// });
 
 module.exports = router;
