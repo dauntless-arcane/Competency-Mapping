@@ -52,7 +52,7 @@ export default function ResultsPage() {
       try {
         setLoading(true);
         const response = await fetch(
-          `http://localhost:3010/api/users/result/testuser/${attemptId}`,
+          `${process.env.NEXT_PUBLIC_API_URL}/api/users/result/testuser/${attemptId}`,
           {
             method: 'POST',
             headers: {

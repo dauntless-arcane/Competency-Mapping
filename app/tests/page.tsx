@@ -41,7 +41,7 @@ export default function TestsPage() {
         setError(null);
         
         // Use POST method as per your route definition
-        const response = await fetch('http://localhost:3010/api/users/fetch-tests', {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/fetch-tests`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
