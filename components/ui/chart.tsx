@@ -111,18 +111,24 @@ type FixedTooltipProps = TooltipProps<any, any> &
     labelKey?: string;
   };
 
-const ChartTooltip = RechartsPrimitive.Tooltip;
+import type { TooltipProps } from "recharts";
 
-const ChartTooltipContent = React.forwardRef<
-  HTMLDivElement,
-  FixedTooltipProps>
-  (
+type ChartTooltipProps = TooltipProps<any, any> &
+  React.ComponentProps<"div"> & {
+    hideLabel?: boolean;
+    hideIndicator?: boolean;
+    indicator?: "line" | "dot" | "dashed";
+    nameKey?: string;
+    labelKey?: string;
+  };
+
+const ChartTooltipContent = React.forwardRef<HTMLDivElement, ChartTooltipProps>(
   (
     {
       active,
       payload,
       className,
-      indicator = 'dot',
+      indicator = "dot",
       hideLabel = false,
       hideIndicator = false,
       label,
@@ -132,9 +138,11 @@ const ChartTooltipContent = React.forwardRef<
       color,
       nameKey,
       labelKey,
+      ...divProps
     },
     ref
   ) => {
+
     const { config } = useChart();
 
     const tooltipLabel = React.useMemo(() => {
