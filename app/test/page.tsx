@@ -191,7 +191,7 @@ export default function TestPage() {
 
       if (result.Status && !result.Error) {
         localStorage.removeItem(BUFFER_KEY);
-        router.push('/results');
+        router.push('/result');
       } else {
         console.error('❌ Server error:', result.ErrMsg);
       }

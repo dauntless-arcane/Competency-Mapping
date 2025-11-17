@@ -36,7 +36,7 @@ export default function ResultsPage() {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch('${process.env.NEXT_PUBLIC_API_URL}/api/users/result/testuser/', {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/result/testuser/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         });
