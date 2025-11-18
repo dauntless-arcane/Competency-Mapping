@@ -163,11 +163,11 @@
       ] },
     { "text": "Am not interested in abstract ideas.", "trait": "Openness", "reversedScore": true,
     "options": [
-        { "value": 1, "label": "Disagree" },
-        { "value": 2, "label": "Slightly Disagree" },
+        { "value": 5, "label": "Disagree" },
+        { "value": 4, "label": "Slightly Disagree" },
         { "value": 3, "label": "Neutral" },
-        { "value": 4, "label": "Slightly Agree" },
-        { "value": 5, "label": "Agree" }
+        { "value": 2, "label": "Slightly Agree" },
+        { "value": 1, "label": "Agree" }
       ] },
     { "text": "Start conversations.", "trait": "Extraversion", "reversedScore": false,
     "options": [
