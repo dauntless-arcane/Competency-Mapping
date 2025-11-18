@@ -79,7 +79,33 @@ async function generateResultFromSurvey(surveyResponse) {
   }
 
   // Determine final scores (fall back order)
-  const finalScores = ctx.final || ctx.summed || ctx.averaged || ctx.formulaResults || {};
+// ---- UNIVERSAL AUTO-COLLECTOR ----
+
+// Start empty
+let finalScores = {};
+
+// Score containers that may be objects or simple values
+const containers = [
+  "final",
+  "summed",
+  "averaged",
+  "formulaResults",
+  "percentile",
+  "z",
+  "kolb",
+  "total"
+];
+
+// Merge everything into finalScores
+for (const key of containers) {
+  if (ctx[key] !== undefined) {
+    if (typeof ctx[key] === "object" && !Array.isArray(ctx[key])) {
+      finalScores = { ...finalScores, ...ctx[key] };
+    } else {
+      finalScores[key] = ctx[key]; // simple value (example: total)
+    }
+  }
+}
 
   // Build traitBreakdown & summary
   const traitBreakdown = Object.entries(finalScores).map(([trait, score]) => ({
