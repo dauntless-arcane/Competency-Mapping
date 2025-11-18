@@ -11,6 +11,10 @@
 /.next/
 /out/
 
+/logs
+/prometheus
+/grafana/grafana-v10.2.3
+/grafana/grafana-10.2.3.windows-amd64.zip
 # production
 /build
 

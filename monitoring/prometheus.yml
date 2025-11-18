@@ -1,0 +1,11 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: "pm2"
+    static_configs:
+      - targets: ["localhost:9209"]
+
+  - job_name: "psych-api"
+    static_configs:
+      - targets: ["localhost:3010"]
