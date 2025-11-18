@@ -256,6 +256,96 @@ function erf(x) {
   const y = 1 - ((((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t) * Math.exp(-x * x);
   return sign * y;
 }
+// --------------------- kolb_score ---------------------
+// Kolb Learning Style Inventory 4.0 scoring
+// Expects answers[i].ranks = { CE:4, RO:3, AC:2, AE:1 }
+function kolb_score(ctx = {}, step = {}, test = {}, answers = [], questions = []) {
+  const modes = { CE: 0, RO: 0, AC: 0, AE: 0 };
+
+  for (const ans of (Array.isArray(answers) ? answers : [])) {
+    if (!ans.ranks || typeof ans.ranks !== "object") continue;
+
+    for (const mode of ["CE", "RO", "AC", "AE"]) {
+      const val = Number(ans.ranks[mode] ?? 0);
+      if (!Number.isNaN(val)) {
+        modes[mode] += val;
+      }
+    }
+  }
+
+  // Quadrant sums
+  const quadrants = {
+    Assimilative: modes.AC + modes.RO,      // Lower-Right
+    Convergent: modes.AC + modes.AE,        // Lower-Left
+    Accommodative: modes.CE + modes.AE,     // Upper-Left
+    Divergent: modes.CE + modes.RO          // Upper-Right
+  };
+
+  // Determine dominant quadrant
+  let dominant = Object.keys(quadrants)[0];
+  for (const q of Object.keys(quadrants)) {
+    if (quadrants[q] > quadrants[dominant]) dominant = q;
+  }
+
+  // Areas (if needed)
+  const areas = {
+    Assimilative: modes.AC * modes.RO,
+    Convergent: modes.AC * modes.AE,
+    Accommodative: modes.CE * modes.AE,
+    Divergent: modes.CE * modes.RO
+  };
+
+  ctx.kolb = {
+    CE: modes.CE,
+    RO: modes.RO,
+    AC: modes.AC,
+    AE: modes.AE,
+    quadrants,
+    dominant,
+    areas
+  };
+
+  return ctx;
+}
+function sumAllTraits(ctx = {}, step = {}) {
+  const source = ctx.rawAfterKey || ctx.rawAfterReverse || ctx.raw || {};
+  let total = 0;
+
+  for (const trait of Object.keys(source)) {
+    const arr = source[trait] || [];
+    total += arr.reduce((a, b) => a + Number(b), 0);
+  }
+
+  ctx.total = total;   // store total in ctx
+  return ctx;
+}
+
+// --------------------- EI Custom Score ---------------------
+// Computes:
+// - trait_avgs: average of each trait
+// - total: sum of all raw items
+function ei_score(ctx = {}, step = {}, test = {}, answers = [], questions = []) {
+  const source = ctx.raw || {};
+
+  ctx.final = {};   // VERY IMPORTANT → matches other tests
+  let total = 0;
+
+  for (const trait of Object.keys(source)) {
+    const arr = source[trait] || [];
+    const sum = arr.reduce((a, b) => a + toNum(b, 0), 0);
+    const avg = arr.length ? sum / arr.length : 0;
+
+    ctx.final[trait] = avg;   // same shape as other scoring methods
+    total += sum;
+  }
+
+  // add total score as another trait
+  ctx.final.totalEI = total;
+
+  return ctx;
+}
+
+
 
 // --------------------- Exports + Aliases ---------------------
 module.exports = {
@@ -282,5 +372,13 @@ module.exports = {
   add_constants: addConstants,
   z_score: zScore,
   percentile_from_z: percentileFromZ,
-  apply_formula: applyFormula
+  apply_formula: applyFormula,
+  kolb_score,
+  kolb_score:kolb_score,
+  ei_score,
+  eiScore: ei_score,
+  sumAllTraits,
+sum_all_traits: sumAllTraits,
+
+
 };
