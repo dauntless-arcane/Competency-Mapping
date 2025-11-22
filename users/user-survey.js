@@ -13,7 +13,9 @@ const responseSchema = Joi.object({
     .items(
       Joi.object({
         questionId: Joi.string().required(),
-        value: Joi.number().required()
+        value: Joi.alternatives()
+          .try(Joi.number(), Joi.string())
+          .required()
       })
     )
     .min(1)

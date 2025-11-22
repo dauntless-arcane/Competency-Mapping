@@ -1,7 +1,7 @@
 const { spawn } = require("child_process");
 const path = require("path");
 
-const promPath = path.join(__dirname, "prometheus", "promtool.exe");
+const promPath = path.join(__dirname, '../',"prometheus", "promtool.exe");
 
 const child = spawn(promPath, [], {
   detached: false,

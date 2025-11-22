@@ -1,7 +1,7 @@
 const { spawn } = require("child_process");
 const path = require("path");
 
-const grafanaPath = path.join(__dirname,'../', "grafana","grafana-v10.2.3", "bin", "grafana-server.exe");
+const grafanaPath = path.join(__dirname,'../', "grafana", "bin", "grafana-server.exe");
 
 // Start without opening CMD window
 const child = spawn(grafanaPath, [], {

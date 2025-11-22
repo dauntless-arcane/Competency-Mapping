@@ -92,7 +92,6 @@ const containers = [
   "formulaResults",
   "percentile",
   "z",
-  "kolb",
   "total"
 ];
 
@@ -108,10 +107,66 @@ for (const key of containers) {
 }
 
   // Build traitBreakdown & summary
-  const traitBreakdown = Object.entries(finalScores).map(([trait, score]) => ({
+// const traitBreakdown = Object.entries(finalScores).map(([trait, finalScore]) => {
+//   const raw = ctx.rawScores?.[trait] ?? null;
+//   const constant = constants?.[trait] ?? 0;
+
+//   // Build description with raw + constant + final
+//   let description = `Final score for ${trait}: ${finalScore}`;
+
+//   // Breakdown explanation
+//   let parts = [];
+//   if (raw !== null) parts.push(`raw ${raw}`);
+//   if (constant !== 0) parts.push(`constant ${constant}`);
+
+//   if (parts.length > 0) {
+//     description += ` (${parts.join(" + ")} = ${finalScore})`;
+//   }
+
+//   return {
+//     trait,
+//     score: finalScore,   // final score stored
+//     description
+//   };
+// });
+// Remove technical KOLB keys or object values
+const filteredFinalScores = {};
+
+for (const [trait, value] of Object.entries(finalScores)) {
+  // Skip internal Kolb objects
+  if (["modes", "quadrants", "dominant"].includes(trait)) continue;
+
+  // Skip values that are objects (quadrants, maps, areas, etc.)
+  if (typeof value === "object" && value !== null) continue;
+
+  // Keep normal numeric/string scores
+  filteredFinalScores[trait] = value;
+}
+
+const traitBreakdown = Object.entries(finalScores).map(([trait, finalScore]) => {
+  const raw = ctx.rawScores?.[trait] ?? null;
+  const constant = constants?.[trait] ?? 0;
+
+  // Build description with raw + constant + final
+  let description = `Final score for ${trait}: ${finalScore}`;
+
+  let parts = [];
+  if (raw !== null) parts.push(`raw ${raw}`);
+  if (constant !== 0) parts.push(`constant ${constant}`);
+
+  if (parts.length > 0) {
+    description += ` (${parts.join(" + ")} = ${finalScore})`;
+  }
+
+  return {
     trait,
-    score
-  }));
+    score: (typeof finalScore === "object" && finalScore !== null)
+      ? JSON.stringify(finalScore)    // fix: stringify objects
+      : String(finalScore),           // fix: ensure string for numbers
+    description
+  };
+});
+
 
   const summary = Object.entries(finalScores).map(([t, s]) => `${t}: ${s}`).join(', ');
 
