@@ -8,6 +8,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, ArrowLeft, ArrowRight, Brain, CheckCircle, Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { apiClient } from "@/lib/auth/apiClient";
 
 const API_BASE =`${process.env.NEXT_PUBLIC_API_URL}/api`;
 
@@ -79,7 +80,7 @@ export default function TestPage() {
         setLoading(true);
         setError(null);
 
-        const response = await fetch(`${API_BASE}/users/fetch-tests/${surveyId}`, {
+        const response = await apiClient(`${API_BASE}/users/fetch-tests/${surveyId}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
