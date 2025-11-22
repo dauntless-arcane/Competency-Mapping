@@ -27,7 +27,7 @@ async function buildSingleTestIndex(surveyIdOrObjectId) {
     }
 
     // 🎯 Strictly match all related questions by surveyId
-    const questions = await Question.find({ surveyId: test.surveyId }).lean();
+    const questions = await Question.find({ surveyId: test.surveyId }).sort({ testIndex: 1 }).lean();
 
     // 🧠 Prepare the index document (aligned with latest schema)
     const testIndexDoc = {

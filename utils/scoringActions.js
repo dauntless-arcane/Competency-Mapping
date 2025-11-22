@@ -262,23 +262,28 @@ function erf(x) {
 function kolb_score(ctx = {}, step = {}, test = {}, answers = [], questions = []) {
   const modes = { CE: 0, RO: 0, AC: 0, AE: 0 };
 
+  // Parse rank answers
   for (const ans of (Array.isArray(answers) ? answers : [])) {
-    if (!ans.ranks || typeof ans.ranks !== "object") continue;
-
-    for (const mode of ["CE", "RO", "AC", "AE"]) {
-      const val = Number(ans.ranks[mode] ?? 0);
-      if (!Number.isNaN(val)) {
-        modes[mode] += val;
-      }
+    if (typeof ans.value === "string") {
+      try {
+        const arr = JSON.parse(ans.value);
+        if (Array.isArray(arr)) {
+          for (const item of arr) {
+            if (["CE", "RO", "AC", "AE"].includes(item.optionId)) {
+              modes[item.optionId] += Number(item.rank || 0);
+            }
+          }
+        }
+      } catch {}
     }
   }
 
-  // Quadrant sums
+  // Quadrants numeric scores
   const quadrants = {
-    Assimilative: modes.AC + modes.RO,      // Lower-Right
-    Convergent: modes.AC + modes.AE,        // Lower-Left
-    Accommodative: modes.CE + modes.AE,     // Upper-Left
-    Divergent: modes.CE + modes.RO          // Upper-Right
+    Kolb_Assimilative: modes.AC + modes.RO,
+    Kolb_Convergent:  modes.AC + modes.AE,
+    Kolb_Accommodative: modes.CE + modes.AE,
+    Kolb_Divergent: modes.CE + modes.RO
   };
 
   // Determine dominant quadrant
@@ -287,26 +292,34 @@ function kolb_score(ctx = {}, step = {}, test = {}, answers = [], questions = []
     if (quadrants[q] > quadrants[dominant]) dominant = q;
   }
 
-  // Areas (if needed)
-  const areas = {
-    Assimilative: modes.AC * modes.RO,
-    Convergent: modes.AC * modes.AE,
-    Accommodative: modes.CE * modes.AE,
-    Divergent: modes.CE * modes.RO
+  // Store detailed object in ctx.kolb (safe)
+  ctx.kolb = {
+    modes,
+    quadrants,
+    dominant
   };
 
-  ctx.kolb = {
-    CE: modes.CE,
-    RO: modes.RO,
-    AC: modes.AC,
-    AE: modes.AE,
-    quadrants,
-    dominant,
-    areas
-  };
+  // Store numeric traits in ctx.final (required!)
+  ctx.final = ctx.final || {};
+
+  // Add raw modes
+  ctx.final.Kolb_CE = modes.CE;
+  ctx.final.Kolb_RO = modes.RO;
+  ctx.final.Kolb_AC = modes.AC;
+  ctx.final.Kolb_AE = modes.AE;
+
+  // Add quadrant numeric scores
+  ctx.final.Kolb_Assimilative = quadrants.Kolb_Assimilative;
+  ctx.final.Kolb_Convergent = quadrants.Kolb_Convergent;
+  ctx.final.Kolb_Accommodative = quadrants.Kolb_Accommodative;
+  ctx.final.Kolb_Divergent = quadrants.Kolb_Divergent;
+
+  // Dominant as number category (optional)
+  ctx.final.Kolb_Dominant_Index = Object.keys(quadrants).indexOf(dominant);
 
   return ctx;
 }
+
 function sumAllTraits(ctx = {}, step = {}) {
   const source = ctx.rawAfterKey || ctx.rawAfterReverse || ctx.raw || {};
   let total = 0;

@@ -2,7 +2,8 @@ const mongoose = require('mongoose');
 
 const traitBreakdownSchema = new mongoose.Schema({
   trait: String,
-  description: String
+  description: String,
+  score: String
 });
 
 const ResultSchema = new mongoose.Schema({
