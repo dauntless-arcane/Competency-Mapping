@@ -4,18 +4,19 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, Reorder } from 'framer-motion';
 import { AlertCircle, ArrowLeft, ArrowRight, Brain, CheckCircle, Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { apiClient } from "@/lib/auth/apiClient";
+import { apiClient } from '@/lib/auth/apiClient';
 
-const API_BASE =`${process.env.NEXT_PUBLIC_API_URL}/api`;
+const API_BASE = `${process.env.NEXT_PUBLIC_API_URL}/api`;
 
 interface Option {
-  value: number;
+  value?: number;        // for normal MCQ/scale questions
   label: string;
-  _id: string;
+  _id?: string;          // may be absent for some rank options
+  mode?: string;         // for rank questions (e.g. CE, RO, etc.)
 }
 
 interface Question {
@@ -26,6 +27,7 @@ interface Question {
   options: Option[];
   trait: string;
   reversedScore: string;
+  optionType?: string;   // "rank" | other
   __v: number;
 }
 
@@ -62,8 +64,11 @@ export default function TestPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [answers, setAnswers] = useState<{ [key: string]: number }>({});
+  const [answers, setAnswers] = useState<{ [key: string]: number | string }>({});
   const [isComplete, setIsComplete] = useState(false);
+
+  // for rank questions
+  const [rankOrder, setRankOrder] = useState<Option[]>([]);
 
   const BUFFER_KEY = `testAnswersBuffer_${surveyId}`;
 
@@ -85,7 +90,7 @@ export default function TestPage() {
           headers: {
             'Content-Type': 'application/json',
           },
-        })
+        });
 
         if (!response.ok) {
           throw new Error(`Server error: ${response.status}`);
@@ -113,7 +118,7 @@ export default function TestPage() {
   useEffect(() => {
     if (!testData) return;
 
-    const saved = localStorage.getItem(BUFFER_KEY);
+    const saved = typeof window !== 'undefined' ? localStorage.getItem(BUFFER_KEY) : null;
     if (saved) {
       try {
         setAnswers(JSON.parse(saved));
@@ -125,33 +130,75 @@ export default function TestPage() {
 
   // Save buffer whenever answers change
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     if (Object.keys(answers).length > 0) {
       localStorage.setItem(BUFFER_KEY, JSON.stringify(answers));
     }
   }, [answers, BUFFER_KEY]);
 
+  // When question changes, set up rankOrder (for rank type)
+  useEffect(() => {
+    if (!testData) return;
+    const q = testData.questions[currentQuestion];
+    if (!q) return;
+
+    if (q.optionType === 'rank') {
+      const savedValue = answers[q.questionId];
+
+      if (typeof savedValue === 'string') {
+        try {
+          const parsed: { optionId: string; label?: string; mode?: string; rank: number }[] =
+            JSON.parse(savedValue);
+
+          const getId = (o: Option) => o._id || o.mode || o.label;
+          const sorted = [...q.options].sort((a, b) => {
+            const aid = getId(a);
+            const bid = getId(b);
+            const ap = parsed.findIndex((p) => p.optionId === aid);
+            const bp = parsed.findIndex((p) => p.optionId === bid);
+            const aIndex = ap === -1 ? Number.MAX_SAFE_INTEGER : ap;
+            const bIndex = bp === -1 ? Number.MAX_SAFE_INTEGER : bp;
+            return aIndex - bIndex;
+          });
+
+          setRankOrder(sorted);
+          return;
+        } catch (e) {
+          console.warn('Failed to parse saved rank answer, resetting order.', e);
+        }
+      }
+
+      // default order if none saved or parse failed
+      setRankOrder(q.options);
+    }
+  }, [testData, currentQuestion, answers]);
+
   const handleAnswerChange = (value: string) => {
     if (!testData) return;
 
     const numericValue = parseInt(value, 10);
-    setAnswers(prev => ({
+    const qId = testData.questions[currentQuestion].questionId;
+
+    setAnswers((prev) => ({
       ...prev,
-      [testData.questions[currentQuestion].questionId]: numericValue,
+      [qId]: numericValue,
     }));
+
+    // auto-next
     setTimeout(() => {
       if (currentQuestion < testData.questions.length - 1) {
         setCurrentQuestion((prev) => prev + 1);
       } else {
         setIsComplete(true);
       }
-    }, 20);
+    }, 200);
   };
 
   const handleNext = () => {
     if (!testData) return;
 
     if (currentQuestion < testData.questions.length - 1) {
-      setCurrentQuestion(prev => prev + 1);
+      setCurrentQuestion((prev) => prev + 1);
     } else {
       setIsComplete(true);
     }
@@ -159,17 +206,49 @@ export default function TestPage() {
 
   const handlePrevious = () => {
     if (currentQuestion > 0) {
-      setCurrentQuestion(prev => prev - 1);
+      setCurrentQuestion((prev) => prev - 1);
     }
+  };
+
+  // Save ranking for current question & go next
+  const handleRankSaveNext = () => {
+    if (!testData) return;
+    const q = testData.questions[currentQuestion];
+    if (!q) return;
+
+    const getId = (o: Option) => o._id || o.mode || o.label;
+
+    const serialized = JSON.stringify(
+      rankOrder.map((o, index) => ({
+        optionId: getId(o),
+        label: o.label,
+        mode: o.mode,
+        rank: index + 1,
+      }))
+    );
+
+    setAnswers((prev) => ({
+      ...prev,
+      [q.questionId]: serialized,
+    }));
+
+    setTimeout(() => {
+      if (currentQuestion < testData.questions.length - 1) {
+        setCurrentQuestion((prev) => prev + 1);
+      } else {
+        setIsComplete(true);
+      }
+    }, 200);
   };
 
   const handleSubmit = async () => {
     console.log(answers);
 
     if (!answers || Object.keys(answers).length === 0) return;
+
     const formattedAnswers = Object.entries(answers).map(([questionId, value]) => ({
       questionId,
-      value
+      value,
     }));
 
     const payload = {
@@ -191,7 +270,9 @@ export default function TestPage() {
       console.log('✅ Response:', result);
 
       if (result.Status && !result.Error) {
-        localStorage.removeItem(BUFFER_KEY);
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem(BUFFER_KEY);
+        }
         router.push('/result');
       } else {
         console.error('❌ Server error:', result.ErrMsg);
@@ -199,10 +280,11 @@ export default function TestPage() {
     } catch (err) {
       console.error('❌ Request failed:', err);
     }
-    // Clear the buffer
-    localStorage.removeItem(BUFFER_KEY);
 
-    // Mark as complete
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(BUFFER_KEY);
+    }
+
     setIsComplete(true);
   };
 
@@ -253,7 +335,9 @@ export default function TestPage() {
   }
 
   const progress = ((currentQuestion + 1) / testData.questions.length) * 100;
-  const answeredQuestions = Object.keys(answers).length;
+const answeredQuestions = testData.questions.filter(
+  (q) => answers[q.questionId] !== undefined && answers[q.questionId] !== null && answers[q.questionId] !== ""
+).length;
   const currentQ = testData.questions[currentQuestion];
 
   // Completion screen
@@ -277,7 +361,8 @@ export default function TestPage() {
                   <strong>Test:</strong> {testData.name}
                 </p>
                 <p className="text-sm text-[#032B61]">
-                  <strong>Questions Answered:</strong> {answeredQuestions} of {testData.questions.length}
+                  <strong>Questions Answered:</strong> {answeredQuestions} of{' '}
+                  {testData.questions.length}
                 </p>
                 <p className="text-sm text-[#6B86B4] mt-2">
                   {testData.description}
@@ -339,93 +424,127 @@ export default function TestPage() {
 
           <CardContent className="space-y-6 p-6">
             <AnimatePresence mode="wait">
-  <motion.div
-    key={currentQ.questionId}
-    initial={{ opacity: 0, x: 50 }}
-    animate={{ opacity: 1, x: 0 }}
-    exit={{ opacity: 0, x: -50 }}
-    transition={{ duration: 0.3, ease: 'easeInOut' }}
-    className="space-y-6"
-  >
-    {/* Question */}
-    <div className="p-5 bg-gradient-to-br from-[#F2E5D8] to-[#E8D5C4] rounded-lg border-l-4 border-[#C6902A]">
-      <h3 className="text-lg font-semibold text-[#032B61] mb-3 leading-relaxed">
-        {currentQ.text}
-      </h3>
-    </div>
+              <motion.div
+                key={currentQ.questionId}
+                initial={{ opacity: 0, x: 50 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -50 }}
+                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                className="space-y-6"
+              >
+                {/* Question */}
+                <div className="p-5 bg-gradient-to-br from-[#F2E5D8] to-[#E8D5C4] rounded-lg border-l-4 border-[#C6902A]">
+                  <h3 className="text-lg font-semibold text-[#032B61] mb-3 leading-relaxed">
+                    {currentQ.text}
+                  </h3>
+                </div>
 
-    {/* Options */}
-    <RadioGroup
-      value={answers[currentQ.questionId]?.toString() ?? ''}
-      onValueChange={(value) => {
-        const numericValue = parseInt(value, 10);
-        setAnswers((prev) => ({
-          ...prev,
-          [currentQ.questionId]: numericValue,
-        }));
+                {/* Options / Rank UI */}
+                {currentQ.optionType === 'rank' ? (
+                  <>
+                    <div className="space-y-4">
+                      <p className="text-[#032B61] text-sm">
+                        Drag the options to rank them in order of preference.
+                      </p>
 
-        // ✅ Auto move to next with smooth animation
-        setTimeout(() => {
-          if (currentQuestion < testData.questions.length - 1) {
-            setCurrentQuestion((prev) => prev + 1);
-          } else {
-            setIsComplete(true);
-          }
-        }, 250);
-      }}
-      className="space-y-3"
-    >
-      {currentQ.options.map((option, index) => (
-        <label
-          key={option._id}
-          htmlFor={`option-${index}`}
-          className={`flex items-center space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer ${
-            answers[currentQ.questionId] === option.value
-              ? 'border-[#2E58A6] bg-[#2E58A6]/5'
-              : 'border-gray-200 hover:border-[#6B86B4] hover:bg-[#F2E5D8]/30'
-          }`}
-        >
-          <RadioGroupItem
-            value={option.value.toString()}
-            id={`option-${index}`}
-            className="border-[#2E58A6]"
-          />
-          <span className="text-[#032B61] font-medium flex-1">{option.label}</span>
-        </label>
-      ))}
-    </RadioGroup>
+                      <Reorder.Group
+                        axis="y"
+                        values={rankOrder}
+                        onReorder={setRankOrder}
+                        className="space-y-3"
+                      >
+                        {rankOrder.map((option) => {
+                          const key = option._id || option.mode || option.label;
+                          return (
+                            <Reorder.Item
+                              key={key}
+                              value={option}
+                              className="p-4 bg-white rounded-lg border-2 border-gray-200 shadow-sm cursor-grab active:cursor-grabbing flex items-center justify-between"
+                            >
+                              <span className="text-[#032B61] font-medium">{option.label}</span>
+                              {option.mode && (
+                                <span className="text-xs px-2 py-1 rounded-full bg-[#F2E5D8] text-[#032B61]">
+                                  {option.mode}
+                                </span>
+                              )}
+                            </Reorder.Item>
+                          );
+                        })}
+                      </Reorder.Group>
+                    </div>
 
-    {/* Buttons */}
-    <div className="flex justify-between pt-6 border-t border-gray-200">
-      <Button
-        variant="outline"
-        onClick={() => setCurrentQuestion((p) => Math.max(0, p - 1))}
-        disabled={currentQuestion === 0}
-        className="border-[#6B86B4] text-[#6B86B4] hover:bg-[#6B86B4] hover:text-white disabled:opacity-50"
-      >
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Previous
-      </Button>
+                    <div className="flex justify-between pt-6 border-t border-gray-200">
+                      <Button
+                        variant="outline"
+                        onClick={handlePrevious}
+                        disabled={currentQuestion === 0}
+                        className="border-[#6B86B4] text-[#6B86B4] hover:bg-[#6B86B4] hover:text-white disabled:opacity-50"
+                      >
+                        <ArrowLeft className="h-4 w-4 mr-2" />
+                        Previous
+                      </Button>
 
-      <div className="flex gap-2">
-        <Button
-          onClick={() =>
-            currentQuestion < testData.questions.length - 1
-              ? setCurrentQuestion((p) => p + 1)
-              : setIsComplete(true)
-          }
-          disabled={answers[currentQ.questionId] === undefined}
-          className="bg-[#2E58A6] hover:bg-[#032B61] text-white disabled:opacity-50"
-        >
-          {currentQuestion === testData.questions.length - 1 ? 'Finish' : 'Next'}
-          <ArrowRight className="h-4 w-4 ml-2" />
-        </Button>
-      </div>
-    </div>
-  </motion.div>
-</AnimatePresence>
+                      <Button
+                        onClick={handleRankSaveNext}
+                        className="bg-[#2E58A6] hover:bg-[#032B61] text-white"
+                      >
+                        {currentQuestion === testData.questions.length - 1 ? 'Finish' : 'Save & Next'}
+                        <ArrowRight className="h-4 w-4 ml-2" />
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <RadioGroup
+                      value={answers[currentQ.questionId]?.toString() ?? ''}
+                      onValueChange={handleAnswerChange}
+                      className="space-y-3"
+                    >
+                      {currentQ.options.map((option, index) => (
+                        <label
+                          key={option._id ?? `${currentQ.questionId}-${index}`}
+                          htmlFor={`option-${index}`}
+                          className={`flex items-center space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer ${
+                            answers[currentQ.questionId] === option.value
+                              ? 'border-[#2E58A6] bg-[#2E58A6]/5'
+                              : 'border-gray-200 hover:border-[#6B86B4] hover:bg-[#F2E5D8]/30'
+                          }`}
+                        >
+                          <RadioGroupItem
+                            value={option.value?.toString() ?? ''}
+                            id={`option-${index}`}
+                            className="border-[#2E58A6]"
+                          />
+                          <span className="text-[#032B61] font-medium flex-1">{option.label}</span>
+                        </label>
+                      ))}
+                    </RadioGroup>
 
+                    {/* Buttons */}
+                    <div className="flex justify-between pt-6 border-t border-gray-200">
+                      <Button
+                        variant="outline"
+                        onClick={handlePrevious}
+                        disabled={currentQuestion === 0}
+                        className="border-[#6B86B4] text-[#6B86B4] hover:bg-[#6B86B4] hover:text-white disabled:opacity-50"
+                      >
+                        <ArrowLeft className="h-4 w-4 mr-2" />
+                        Previous
+                      </Button>
 
+                      <Button
+                        onClick={handleNext}
+                        disabled={answers[currentQ.questionId] === undefined}
+                        className="bg-[#2E58A6] hover:bg-[#032B61] text-white disabled:opacity-50"
+                      >
+                        {currentQuestion === testData.questions.length - 1 ? 'Finish' : 'Next'}
+                        <ArrowRight className="h-4 w-4 ml-2" />
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </motion.div>
+            </AnimatePresence>
           </CardContent>
         </Card>
       </div>
