@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertCircle, Brain, Clock, Loader2, Play, Search, Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { apiClient } from "@/lib/auth/apiClient";
 
 interface Test {
   surveyId: string;
@@ -41,7 +42,7 @@ export default function TestsPage() {
         setError(null);
         
         // Use POST method as per your route definition
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/fetch-tests`, {
+        const response = await apiClient(`${process.env.NEXT_PUBLIC_API_URL}/api/users/fetch-tests`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
