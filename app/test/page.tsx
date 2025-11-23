@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, ArrowLeft, ArrowRight, Brain, CheckCircle, Loader2 } from 'lucide-react';
+import { AnimatePresence, motion, Reorder } from 'framer-motion';
+import { AlertCircle, ArrowLeft, ArrowRight, Brain, CheckCircle, GripVertical, Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -49,6 +49,139 @@ interface ApiResponse {
   count?: number;
   data: TestData[];
   message?: string;
+}
+
+
+function KolbRanker({ question, savedValue, onChange }) {
+  // Initialize items with saved ranking order
+  const initial = question.options.map(opt => ({
+    ...opt,
+    id: opt.mode, // Ensure unique ID for Reorder
+  }));
+
+  // If there's a saved value, sort by rank
+  const sortedInitial = savedValue && Object.keys(savedValue).length > 0
+    ? [...initial].sort((a, b) => (savedValue[a.mode] || 999) - (savedValue[b.mode] || 999))
+    : initial;
+
+  const [items, setItems] = useState(sortedInitial);
+
+  useEffect(() => {
+    // Update when savedValue changes (e.g., navigating back)
+    if (savedValue && Object.keys(savedValue).length > 0) {
+      const sorted = [...initial].sort((a, b) => 
+        (savedValue[a.mode] || 999) - (savedValue[b.mode] || 999)
+      );
+      setItems(sorted);
+    }
+  }, [savedValue]);
+
+  const handleReorder = (newOrder) => {
+    setItems(newOrder);
+
+    const ranked = {};
+    newOrder.forEach((opt, i) => {
+      ranked[opt.mode] = i + 1;
+    });
+
+    onChange(ranked);
+  };
+
+  return (
+    <div>
+      <p className="text-gray-600 mb-4 text-sm">
+        Drag to rank (1 = most like you, 4 = least like you)
+      </p>
+
+      <Reorder.Group
+        axis="y"
+        values={items}
+        onReorder={handleReorder}
+        className="space-y-4"
+      >
+        {items.map((item, index) => (
+          <Reorder.Item
+            key={item.mode}
+            value={item}
+            className="bg-white p-4 rounded-xl shadow flex items-center gap-4 cursor-grab active:cursor-grabbing border hover:border-[#2E58A6] transition-colors"
+          >
+            <GripVertical className="text-gray-400" />
+            <span className="text-lg font-medium flex-1 text-[#032B61]">
+              {item.label}
+            </span>
+            <span className="w-8 h-8 bg-[#2E58A6] text-white rounded-full flex items-center justify-center font-semibold">
+              {index + 1}
+            </span>
+          </Reorder.Item>
+        ))}
+      </Reorder.Group>
+    </div>
+  );
+}
+
+function KolbLayout({
+  testData,
+  answers,
+  setAnswers,
+  currentQuestion,
+  setCurrentQuestion,
+  handleSubmit,
+}) {
+
+  const currentQ = testData.questions[currentQuestion];
+  const total = testData.questions.length;
+
+  return (
+    <div className="min-h-screen p-6 bg-[#FAF7F2] flex justify-center">
+      <div className="max-w-2xl w-full">
+
+        {/* Header */}
+        <div className="bg-[#2E58A6] text-white p-6 rounded-xl shadow-xl mb-6">
+          <h1 className="text-2xl font-bold">{testData.name}</h1>
+          <p className="text-white/80">
+            Question {currentQuestion + 1} of {total}
+          </p>
+        </div>
+
+        {/* Ranking Component */}
+        <KolbRanker
+          question={currentQ}
+          savedValue={answers[currentQ.questionId] || {}}
+          onChange={(val) =>
+            setAnswers(prev => ({
+              ...prev,
+              [currentQ.questionId]: val
+            }))
+          }
+        />
+
+        {/* Navigation */}
+        <div className="flex justify-between mt-8">
+          <button
+            onClick={() => setCurrentQuestion(p => Math.max(0, p - 1))}
+            disabled={currentQuestion === 0}
+            className="px-4 py-2 border rounded-lg text-gray-600 disabled:opacity-40"
+          >
+            Previous
+          </button>
+
+          <button
+            onClick={() => {
+              if (currentQuestion < total - 1) {
+                setCurrentQuestion(p => p + 1);
+              } else {
+                handleSubmit();
+              }
+            }}
+            disabled={!answers[currentQ.questionId]}
+            className="px-4 py-2 bg-[#2E58A6] text-white rounded-lg disabled:opacity-40"
+          >
+            {currentQuestion === total - 1 ? "Submit" : "Next"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function TestPage() {
@@ -312,6 +445,83 @@ export default function TestPage() {
     );
   }
 
+  const isKolb = testData?.surveyId === "9423E14";
+
+if (isKolb) {
+  return (
+    <div className="min-h-screen w-full bg-[#F8F4EF] flex justify-center p-6">
+      <div className="max-w-3xl w-full">
+
+        {/* HEADER */}
+        <div className="bg-[#2457A6] text-white p-6 rounded-2xl shadow-lg mb-8">
+          <h1 className="text-2xl font-bold">{testData.name}</h1>
+
+          <p className="text-white/90 mt-1">
+            Question {currentQuestion + 1} of {testData.questions.length}
+          </p>
+
+          {/* Display question text or placeholder */}
+          <div className="mt-4 bg-white/10 p-4 rounded-lg">
+            <p className="text-white text-lg">
+              {currentQ.text && currentQ.text.trim() !== "" 
+                ? currentQ.text 
+                : "<--question-->"}
+            </p>
+          </div>
+
+          {/* Show instruction text */}
+          <p className="text-white/80 text-sm mt-3">
+            Rank these statements from most like you (1) to least like you (4)
+          </p>
+        </div>
+
+        {/* RANKING UI */}
+        <KolbRanker
+          question={currentQ}
+          savedValue={answers[currentQ.questionId] || {}}
+          onChange={(val) =>
+            setAnswers(prev => ({
+              ...prev,
+              [currentQ.questionId]: val
+            }))
+          }
+        />
+
+        {/* Buttons */}
+        <div className="flex justify-between pt-6 border-t border-gray-200">
+          <Button
+            variant="outline"
+            onClick={() => setCurrentQuestion((p) => Math.max(0, p - 1))}
+            disabled={currentQuestion === 0}
+            className="border-[#6B86B4] text-[#6B86B4] hover:bg-[#6B86B4] hover:text-white disabled:opacity-50"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Previous
+          </Button>
+
+          <div className="flex gap-2">
+            <Button
+              onClick={() =>
+                currentQuestion < testData.questions.length - 1
+                  ? setCurrentQuestion((p) => p + 1)
+                  : setIsComplete(true)
+              }
+              disabled={!answers[currentQ.questionId] ||Object.keys(answers[currentQ.questionId]).length !== 4
+  }
+              className="bg-[#2E58A6] hover:bg-[#032B61] text-white disabled:opacity-50"
+            >
+              {currentQuestion === testData.questions.length - 1 ? 'Finish' : 'Next'}
+              <ArrowRight className="h-4 w-4 ml-2" />
+            </Button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+
+}
+else{
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
       <div className="max-w-3xl w-full">
@@ -337,7 +547,7 @@ export default function TestPage() {
           </CardHeader>
 
           <CardContent className="space-y-6 p-6">
-            <AnimatePresence mode="wait">
+<AnimatePresence mode="wait">
   <motion.div
     key={currentQ.questionId}
     initial={{ opacity: 0, x: 50 }}
@@ -430,4 +640,6 @@ export default function TestPage() {
       </div>
     </div>
   );
+}
+  
 }
