@@ -7,14 +7,16 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { AnimatePresence, motion, Reorder } from 'framer-motion';
 import { AlertCircle, ArrowLeft, ArrowRight, Brain, CheckCircle, GripVertical, Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-const API_BASE =`${process.env.NEXT_PUBLIC_API_URL}/api`;
+const API_BASE = `${process.env.NEXT_PUBLIC_API_URL}/api`;
 
+// Types
 interface Option {
   value: number;
   label: string;
   _id: string;
+  mode?: string; // kolb-specific unique key (e.g., "AC", "CE", ...)
 }
 
 interface Question {
@@ -23,9 +25,9 @@ interface Question {
   questionId: string;
   text: string;
   options: Option[];
-  trait: string;
-  reversedScore: string;
-  __v: number;
+  trait?: string;
+  reversedScore?: string;
+  __v?: number;
 }
 
 interface Category {
@@ -38,9 +40,9 @@ interface TestData {
   description: string;
   categories: Category[];
   totalQuestions: number;
-  scoringMethod: string;
+  scoringMethod?: string;
   questions: Question[];
-  updatedAt: string;
+  updatedAt?: string;
 }
 
 interface ApiResponse {
@@ -51,37 +53,64 @@ interface ApiResponse {
   message?: string;
 }
 
+// Kolb answer: map of mode -> rank (1..4)
+type KolbRankAnswer = { [mode: string]: number };
 
-function KolbRanker({ question, savedValue, onChange }) {
-  // Initialize items with saved ranking order
-  const initial = question.options.map(opt => ({
-    ...opt,
-    id: opt.mode, // Ensure unique ID for Reorder
-  }));
+// answers can be either a number (MCQ) or a Kolb object
+type AnswersState = { [questionId: string]: number | KolbRankAnswer };
 
-  // If there's a saved value, sort by rank
-  const sortedInitial = savedValue && Object.keys(savedValue).length > 0
-    ? [...initial].sort((a, b) => (savedValue[a.mode] || 999) - (savedValue[b.mode] || 999))
-    : initial;
+// ------------------- KolbRanker -------------------
+function KolbRanker({
+  question,
+  savedValue,
+  onChange,
+}: {
+  question: Question;
+  savedValue?: KolbRankAnswer;
+  onChange: (ranked: KolbRankAnswer) => void;
+}) {
+  // Build items with stable id/mode
+  const initial = useMemo(() => {
+    return question.options.map((opt) => ({
+      id: opt.mode || opt._id,
+      mode: opt.mode || opt._id,
+      label: opt.label,
+      _raw: opt,
+    }));
+  }, [question.options]);
+
+  // If there's a saved ranking, sort initial accordingly
+  const sortedInitial = useMemo(() => {
+    if (!savedValue || Object.keys(savedValue).length === 0) return initial;
+    return [...initial].sort((a, b) => {
+      const ra = savedValue[a.mode] ?? 999;
+      const rb = savedValue[b.mode] ?? 999;
+      return ra - rb;
+    });
+  }, [initial, savedValue]);
 
   const [items, setItems] = useState(sortedInitial);
 
   useEffect(() => {
-    // Update when savedValue changes (e.g., navigating back)
+    // if savedValue changes (e.g., navigating back), re-sort
     if (savedValue && Object.keys(savedValue).length > 0) {
-      const sorted = [...initial].sort((a, b) => 
-        (savedValue[a.mode] || 999) - (savedValue[b.mode] || 999)
-      );
+      const sorted = [...initial].sort((a, b) => {
+        const ra = savedValue[a.mode] ?? 999;
+        const rb = savedValue[b.mode] ?? 999;
+        return ra - rb;
+      });
       setItems(sorted);
+    } else {
+      setItems(initial);
     }
-  }, [savedValue]);
+  }, [savedValue, initial]);
 
-  const handleReorder = (newOrder) => {
+  const handleReorder = (newOrder: typeof items) => {
     setItems(newOrder);
 
-    const ranked = {};
+    const ranked: KolbRankAnswer = {};
     newOrder.forEach((opt, i) => {
-      ranked[opt.mode] = i + 1;
+      ranked[opt.mode] = i + 1; // rank starts at 1
     });
 
     onChange(ranked);
@@ -93,22 +122,15 @@ function KolbRanker({ question, savedValue, onChange }) {
         Drag to rank (1 = most like you, 4 = least like you)
       </p>
 
-      <Reorder.Group
-        axis="y"
-        values={items}
-        onReorder={handleReorder}
-        className="space-y-4"
-      >
+      <Reorder.Group axis="y" values={items} onReorder={handleReorder} className="space-y-4">
         {items.map((item, index) => (
           <Reorder.Item
-            key={item.mode}
+            key={item.id}
             value={item}
             className="bg-white p-4 rounded-xl shadow flex items-center gap-4 cursor-grab active:cursor-grabbing border hover:border-[#2E58A6] transition-colors"
           >
             <GripVertical className="text-gray-400" />
-            <span className="text-lg font-medium flex-1 text-[#032B61]">
-              {item.label}
-            </span>
+            <span className="text-lg font-medium flex-1 text-[#032B61]">{item.label}</span>
             <span className="w-8 h-8 bg-[#2E58A6] text-white rounded-full flex items-center justify-center font-semibold">
               {index + 1}
             </span>
@@ -119,6 +141,7 @@ function KolbRanker({ question, savedValue, onChange }) {
   );
 }
 
+// ------------------- KolbLayout (simple shared layout if needed) -------------------
 function KolbLayout({
   testData,
   answers,
@@ -126,16 +149,20 @@ function KolbLayout({
   currentQuestion,
   setCurrentQuestion,
   handleSubmit,
+}: {
+  testData: TestData;
+  answers: AnswersState;
+  setAnswers: (a: AnswersState | ((prev: AnswersState) => AnswersState)) => void;
+  currentQuestion: number;
+  setCurrentQuestion: (n: number | ((p: number) => number)) => void;
+  handleSubmit: () => void;
 }) {
-
   const currentQ = testData.questions[currentQuestion];
   const total = testData.questions.length;
 
   return (
     <div className="min-h-screen p-6 bg-[#FAF7F2] flex justify-center">
       <div className="max-w-2xl w-full">
-
-        {/* Header */}
         <div className="bg-[#2E58A6] text-white p-6 rounded-xl shadow-xl mb-6">
           <h1 className="text-2xl font-bold">{testData.name}</h1>
           <p className="text-white/80">
@@ -143,22 +170,20 @@ function KolbLayout({
           </p>
         </div>
 
-        {/* Ranking Component */}
         <KolbRanker
           question={currentQ}
-          savedValue={answers[currentQ.questionId] || {}}
+          savedValue={(answers[currentQ.questionId] as KolbRankAnswer) ?? {}}
           onChange={(val) =>
-            setAnswers(prev => ({
+            setAnswers((prev) => ({
               ...prev,
-              [currentQ.questionId]: val
+              [currentQ.questionId]: val,
             }))
           }
         />
 
-        {/* Navigation */}
         <div className="flex justify-between mt-8">
           <button
-            onClick={() => setCurrentQuestion(p => Math.max(0, p - 1))}
+            onClick={() => setCurrentQuestion((p) => Math.max(0, (p as number) - 1))}
             disabled={currentQuestion === 0}
             className="px-4 py-2 border rounded-lg text-gray-600 disabled:opacity-40"
           >
@@ -168,15 +193,21 @@ function KolbLayout({
           <button
             onClick={() => {
               if (currentQuestion < total - 1) {
-                setCurrentQuestion(p => p + 1);
+                setCurrentQuestion((p) => (p as number) + 1);
               } else {
                 handleSubmit();
               }
             }}
-            disabled={!answers[currentQ.questionId]}
+            disabled={
+              // require the current question to have a full 4-rank object
+              !answers[currentQ.questionId] ||
+              typeof answers[currentQ.questionId] === 'number' ||
+              Object.keys((answers[currentQ.questionId] as KolbRankAnswer) ?? {}).length !==
+                currentQ.options.length
+            }
             className="px-4 py-2 bg-[#2E58A6] text-white rounded-lg disabled:opacity-40"
           >
-            {currentQuestion === total - 1 ? "Submit" : "Next"}
+            {currentQuestion === total - 1 ? 'Submit' : 'Next'}
           </button>
         </div>
       </div>
@@ -184,22 +215,23 @@ function KolbLayout({
   );
 }
 
+// ------------------- Main Page -------------------
 export default function TestPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const surveyId = searchParams.get('id');
+  const surveyId = searchParams.get('id') ?? '';
 
   const [testData, setTestData] = useState<TestData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [answers, setAnswers] = useState<{ [key: string]: number }>({});
+  const [answers, setAnswers] = useState<AnswersState>({});
   const [isComplete, setIsComplete] = useState(false);
 
   const BUFFER_KEY = `testAnswersBuffer_${surveyId}`;
 
-  // Fetch test data from API
+  // Fetch test data
   useEffect(() => {
     if (!surveyId) {
       setError('No test ID provided');
@@ -217,7 +249,7 @@ export default function TestPage() {
           headers: {
             'Content-Type': 'application/json',
           },
-        })
+        });
 
         if (!response.ok) {
           throw new Error(`Server error: ${response.status}`);
@@ -241,67 +273,41 @@ export default function TestPage() {
     fetchTestData();
   }, [surveyId]);
 
-  // Load answers from buffer on mount
+  // Load answers from buffer on mount (after testData is loaded)
   useEffect(() => {
-    if (!testData) return;
+    if (!testData || !surveyId) return;
 
     const saved = localStorage.getItem(BUFFER_KEY);
     if (saved) {
       try {
-        setAnswers(JSON.parse(saved));
+        const parsed = JSON.parse(saved) as AnswersState;
+        setAnswers(parsed);
       } catch (e) {
         console.error('Failed to load saved answers:', e);
       }
     }
-  }, [testData, BUFFER_KEY]);
+  }, [testData, BUFFER_KEY, surveyId]);
 
   // Save buffer whenever answers change
   useEffect(() => {
-    if (Object.keys(answers).length > 0) {
+    if (!surveyId) return;
+    try {
       localStorage.setItem(BUFFER_KEY, JSON.stringify(answers));
+    } catch (e) {
+      console.error('Failed to save answers buffer:', e);
     }
-  }, [answers, BUFFER_KEY]);
-
-  const handleAnswerChange = (value: string) => {
-    if (!testData) return;
-
-    const numericValue = parseInt(value, 10);
-    setAnswers(prev => ({
-      ...prev,
-      [testData.questions[currentQuestion].questionId]: numericValue,
-    }));
-    setTimeout(() => {
-      if (currentQuestion < testData.questions.length - 1) {
-        setCurrentQuestion((prev) => prev + 1);
-      } else {
-        setIsComplete(true);
-      }
-    }, 20);
-  };
-
-  const handleNext = () => {
-    if (!testData) return;
-
-    if (currentQuestion < testData.questions.length - 1) {
-      setCurrentQuestion(prev => prev + 1);
-    } else {
-      setIsComplete(true);
-    }
-  };
-
-  const handlePrevious = () => {
-    if (currentQuestion > 0) {
-      setCurrentQuestion(prev => prev - 1);
-    }
-  };
+  }, [answers, BUFFER_KEY, surveyId]);
 
   const handleSubmit = async () => {
-    console.log(answers);
+    // don't submit empty
+    if (!answers || Object.keys(answers).length === 0) {
+      return;
+    }
 
-    if (!answers || Object.keys(answers).length === 0) return;
+    // Format answers into array
     const formattedAnswers = Object.entries(answers).map(([questionId, value]) => ({
       questionId,
-      value
+      value, // if Kolb, this will be an object (mode->rank), non-kolb will be numeric
     }));
 
     const payload = {
@@ -322,23 +328,25 @@ export default function TestPage() {
       const result = await response.json();
       console.log('✅ Response:', result);
 
-      if (result.Status && !result.Error) {
+      // adapt to whatever your backend returns (cases handled from original)
+      if ((result.Status && !result.Error) || (result.status && !result.error)) {
         localStorage.removeItem(BUFFER_KEY);
         router.push('/result');
       } else {
-        console.error('❌ Server error:', result.ErrMsg);
+        console.error('❌ Server error:', result.ErrMsg || result.message || result);
       }
     } catch (err) {
       console.error('❌ Request failed:', err);
+    } finally {
+      // Clear buffer and mark complete locally
+      try {
+        localStorage.removeItem(BUFFER_KEY);
+      } catch (e) {}
+      setIsComplete(true);
     }
-    // Clear the buffer
-    localStorage.removeItem(BUFFER_KEY);
-
-    // Mark as complete
-    setIsComplete(true);
   };
 
-  // Loading state
+  // Loading
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -350,7 +358,7 @@ export default function TestPage() {
     );
   }
 
-  // Error state
+  // Error
   if (error || !testData) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
@@ -363,17 +371,10 @@ export default function TestPage() {
                 <p className="text-[#6B86B4] mt-2">{error || 'Test not found'}</p>
               </div>
               <div className="flex gap-2 justify-center">
-                <Button
-                  onClick={() => router.push('/tests')}
-                  variant="outline"
-                  className="border-[#6B86B4]"
-                >
+                <Button onClick={() => router.push('/tests')} variant="outline" className="border-[#6B86B4]">
                   Back to Tests
                 </Button>
-                <Button
-                  onClick={() => window.location.reload()}
-                  className="bg-[#2E58A6] hover:bg-[#032B61]"
-                >
+                <Button onClick={() => window.location.reload()} className="bg-[#2E58A6] hover:bg-[#032B61]">
                   Try Again
                 </Button>
               </div>
@@ -400,9 +401,7 @@ export default function TestPage() {
                   <CheckCircle className="h-8 w-8 text-green-600" />
                 </div>
                 <h2 className="text-2xl font-bold text-[#032B61] mb-2">Assessment Complete!</h2>
-                <p className="text-[#6B86B4]">
-                  Thank you for completing {testData.name}.
-                </p>
+                <p className="text-[#6B86B4]">Thank you for completing {testData.name}.</p>
               </div>
               <div className="bg-[#F2E5D8] p-4 rounded-lg mb-6 space-y-2">
                 <p className="text-sm text-[#032B61]">
@@ -411,9 +410,7 @@ export default function TestPage() {
                 <p className="text-sm text-[#032B61]">
                   <strong>Questions Answered:</strong> {answeredQuestions} of {testData.questions.length}
                 </p>
-                <p className="text-sm text-[#6B86B4] mt-2">
-                  {testData.description}
-                </p>
+                <p className="text-sm text-[#6B86B4] mt-2">{testData.description}</p>
               </div>
               <div className="flex gap-3">
                 <Button
@@ -434,9 +431,7 @@ export default function TestPage() {
                 </Button>
               </div>
               {answeredQuestions < testData.questions.length && (
-                <p className="text-xs text-red-500 mt-2">
-                  Please answer all questions before submitting
-                </p>
+                <p className="text-xs text-red-500 mt-2">Please answer all questions before submitting</p>
               )}
             </CardContent>
           </Card>
@@ -445,83 +440,74 @@ export default function TestPage() {
     );
   }
 
-  const isKolb = testData?.surveyId === "9423E14";
+  // detect Kolb by surveyId match (your original conditional)
+  const isKolb = testData?.surveyId === '9423E14';
 
-if (isKolb) {
-  return (
-    <div className="min-h-screen w-full bg-[#F8F4EF] flex justify-center p-6">
-      <div className="max-w-3xl w-full">
+  // KOLB UI
+  if (isKolb) {
+    return (
+      <div className="min-h-screen w-full bg-[#F8F4EF] flex justify-center p-6">
+        <div className="max-w-3xl w-full">
+          <div className="bg-[#2457A6] text-white p-6 rounded-2xl shadow-lg mb-8">
+            <h1 className="text-2xl font-bold">{testData.name}</h1>
 
-        {/* HEADER */}
-        <div className="bg-[#2457A6] text-white p-6 rounded-2xl shadow-lg mb-8">
-          <h1 className="text-2xl font-bold">{testData.name}</h1>
-
-          <p className="text-white/90 mt-1">
-            Question {currentQuestion + 1} of {testData.questions.length}
-          </p>
-
-          {/* Display question text or placeholder */}
-          <div className="mt-4 bg-white/10 p-4 rounded-lg">
-            <p className="text-white text-lg">
-              {currentQ.text && currentQ.text.trim() !== "" 
-                ? currentQ.text 
-                : "<--question-->"}
+            <p className="text-white/90 mt-1">
+              Question {currentQuestion + 1} of {testData.questions.length}
             </p>
+
+            <div className="mt-4 bg-white/10 p-4 rounded-lg">
+              <p className="text-white text-lg">{currentQ.text && currentQ.text.trim() !== '' ? currentQ.text : '<--question-->'}</p>
+            </div>
+
+            <p className="text-white/80 text-sm mt-3">Rank these statements from most like you (1) to least like you (4)</p>
           </div>
 
-          {/* Show instruction text */}
-          <p className="text-white/80 text-sm mt-3">
-            Rank these statements from most like you (1) to least like you (4)
-          </p>
-        </div>
+          <KolbRanker
+            question={currentQ}
+            savedValue={(answers[currentQ.questionId] as KolbRankAnswer) ?? {}}
+            onChange={(val) =>
+              setAnswers((prev) => ({
+                ...prev,
+                [currentQ.questionId]: val,
+              }))
+            }
+          />
 
-        {/* RANKING UI */}
-        <KolbRanker
-          question={currentQ}
-          savedValue={answers[currentQ.questionId] || {}}
-          onChange={(val) =>
-            setAnswers(prev => ({
-              ...prev,
-              [currentQ.questionId]: val
-            }))
-          }
-        />
-
-        {/* Buttons */}
-        <div className="flex justify-between pt-6 border-t border-gray-200">
-          <Button
-            variant="outline"
-            onClick={() => setCurrentQuestion((p) => Math.max(0, p - 1))}
-            disabled={currentQuestion === 0}
-            className="border-[#6B86B4] text-[#6B86B4] hover:bg-[#6B86B4] hover:text-white disabled:opacity-50"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Previous
-          </Button>
-
-          <div className="flex gap-2">
+          <div className="flex justify-between pt-6 border-t border-gray-200">
             <Button
-              onClick={() =>
-                currentQuestion < testData.questions.length - 1
-                  ? setCurrentQuestion((p) => p + 1)
-                  : setIsComplete(true)
-              }
-              disabled={!answers[currentQ.questionId] ||Object.keys(answers[currentQ.questionId]).length !== 4
-  }
-              className="bg-[#2E58A6] hover:bg-[#032B61] text-white disabled:opacity-50"
+              variant="outline"
+              onClick={() => setCurrentQuestion((p) => Math.max(0, (p as number) - 1))}
+              disabled={currentQuestion === 0}
+              className="border-[#6B86B4] text-[#6B86B4] hover:bg-[#6B86B4] hover:text-white disabled:opacity-50"
             >
-              {currentQuestion === testData.questions.length - 1 ? 'Finish' : 'Next'}
-              <ArrowRight className="h-4 w-4 ml-2" />
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Previous
             </Button>
+
+            <div className="flex gap-2">
+              <Button
+                onClick={() =>
+                  currentQuestion < testData.questions.length - 1 ? setCurrentQuestion((p) => (p as number) + 1) : setIsComplete(true)
+                }
+                disabled={
+                  // require the current question to have a full ranking (length === options length)
+                  !answers[currentQ.questionId] ||
+                  typeof answers[currentQ.questionId] === 'number' ||
+                  Object.keys((answers[currentQ.questionId] as KolbRankAnswer) ?? {}).length !== currentQ.options.length
+                }
+                className="bg-[#2E58A6] hover:bg-[#032B61] text-white disabled:opacity-50"
+              >
+                {currentQuestion === testData.questions.length - 1 ? 'Finish' : 'Next'}
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </div>
           </div>
         </div>
-
       </div>
-    </div>
-  );
+    );
+  }
 
-}
-else{
+  // Non-Kolb UI (MCQ style)
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
       <div className="max-w-3xl w-full">
@@ -539,107 +525,90 @@ else{
                   </CardDescription>
                 </div>
               </div>
-              <div className="text-sm bg-white/20 px-3 py-1 rounded-full">
-                {Math.round(progress)}%
-              </div>
+              <div className="text-sm bg-white/20 px-3 py-1 rounded-full">{Math.round(progress)}%</div>
             </div>
             <Progress value={progress} className="h-2 bg-white/30" />
           </CardHeader>
 
           <CardContent className="space-y-6 p-6">
-<AnimatePresence mode="wait">
-  <motion.div
-    key={currentQ.questionId}
-    initial={{ opacity: 0, x: 50 }}
-    animate={{ opacity: 1, x: 0 }}
-    exit={{ opacity: 0, x: -50 }}
-    transition={{ duration: 0.3, ease: 'easeInOut' }}
-    className="space-y-6"
-  >
-    {/* Question */}
-    <div className="p-5 bg-gradient-to-br from-[#F2E5D8] to-[#E8D5C4] rounded-lg border-l-4 border-[#C6902A]">
-      <h3 className="text-lg font-semibold text-[#032B61] mb-3 leading-relaxed">
-        {currentQ.text}
-      </h3>
-    </div>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentQ.questionId}
+                initial={{ opacity: 0, x: 50 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -50 }}
+                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                className="space-y-6"
+              >
+                <div className="p-5 bg-gradient-to-br from-[#F2E5D8] to-[#E8D5C4] rounded-lg border-l-4 border-[#C6902A]">
+                  <h3 className="text-lg font-semibold text-[#032B61] mb-3 leading-relaxed">{currentQ.text}</h3>
+                </div>
 
-    {/* Options */}
-    <RadioGroup
-      value={answers[currentQ.questionId]?.toString() ?? ''}
-      onValueChange={(value) => {
-        const numericValue = parseInt(value, 10);
-        setAnswers((prev) => ({
-          ...prev,
-          [currentQ.questionId]: numericValue,
-        }));
+                <RadioGroup
+                  value={(typeof answers[currentQ.questionId] === 'number' ? (answers[currentQ.questionId] as number).toString() : '') ?? ''}
+                  onValueChange={(value) => {
+                    const numericValue = parseInt(value, 10);
+                    setAnswers((prev) => ({
+                      ...prev,
+                      [currentQ.questionId]: numericValue,
+                    }));
 
-        // ✅ Auto move to next with smooth animation
-        setTimeout(() => {
-          if (currentQuestion < testData.questions.length - 1) {
-            setCurrentQuestion((prev) => prev + 1);
-          } else {
-            setIsComplete(true);
-          }
-        }, 250);
-      }}
-      className="space-y-3"
-    >
-      {currentQ.options.map((option, index) => (
-        <label
-          key={option._id}
-          htmlFor={`option-${index}`}
-          className={`flex items-center space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer ${
-            answers[currentQ.questionId] === option.value
-              ? 'border-[#2E58A6] bg-[#2E58A6]/5'
-              : 'border-gray-200 hover:border-[#6B86B4] hover:bg-[#F2E5D8]/30'
-          }`}
-        >
-          <RadioGroupItem
-            value={option.value.toString()}
-            id={`option-${index}`}
-            className="border-[#2E58A6]"
-          />
-          <span className="text-[#032B61] font-medium flex-1">{option.label}</span>
-        </label>
-      ))}
-    </RadioGroup>
+                    // Auto move to next only for MCQs
+                    setTimeout(() => {
+                      if (currentQuestion < testData.questions.length - 1) {
+                        setCurrentQuestion((prev) => prev + 1);
+                      } else {
+                        setIsComplete(true);
+                      }
+                    }, 250);
+                  }}
+                  className="space-y-3"
+                >
+                  {currentQ.options.map((option, index) => (
+                    <label
+                      key={option._id}
+                      htmlFor={`option-${index}`}
+                      className={`flex items-center space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer ${
+                        answers[currentQ.questionId] === option.value
+                          ? 'border-[#2E58A6] bg-[#2E58A6]/5'
+                          : 'border-gray-200 hover:border-[#6B86B4] hover:bg-[#F2E5D8]/30'
+                      }`}
+                    >
+                      <RadioGroupItem value={option.value.toString()} id={`option-${index}`} className="border-[#2E58A6]" />
+                      <span className="text-[#032B61] font-medium flex-1">{option.label}</span>
+                    </label>
+                  ))}
+                </RadioGroup>
 
-    {/* Buttons */}
-    <div className="flex justify-between pt-6 border-t border-gray-200">
-      <Button
-        variant="outline"
-        onClick={() => setCurrentQuestion((p) => Math.max(0, p - 1))}
-        disabled={currentQuestion === 0}
-        className="border-[#6B86B4] text-[#6B86B4] hover:bg-[#6B86B4] hover:text-white disabled:opacity-50"
-      >
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Previous
-      </Button>
+                <div className="flex justify-between pt-6 border-t border-gray-200">
+                  <Button
+                    variant="outline"
+                    onClick={() => setCurrentQuestion((p) => Math.max(0, (p as number) - 1))}
+                    disabled={currentQuestion === 0}
+                    className="border-[#6B86B4] text-[#6B86B4] hover:bg-[#6B86B4] hover:text-white disabled:opacity-50"
+                  >
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Previous
+                  </Button>
 
-      <div className="flex gap-2">
-        <Button
-          onClick={() =>
-            currentQuestion < testData.questions.length - 1
-              ? setCurrentQuestion((p) => p + 1)
-              : setIsComplete(true)
-          }
-          disabled={answers[currentQ.questionId] === undefined}
-          className="bg-[#2E58A6] hover:bg-[#032B61] text-white disabled:opacity-50"
-        >
-          {currentQuestion === testData.questions.length - 1 ? 'Finish' : 'Next'}
-          <ArrowRight className="h-4 w-4 ml-2" />
-        </Button>
-      </div>
-    </div>
-  </motion.div>
-</AnimatePresence>
-
-
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() =>
+                        currentQuestion < testData.questions.length - 1 ? setCurrentQuestion((p) => (p as number) + 1) : setIsComplete(true)
+                      }
+                      disabled={answers[currentQ.questionId] === undefined}
+                      className="bg-[#2E58A6] hover:bg-[#032B61] text-white disabled:opacity-50"
+                    >
+                      {currentQuestion === testData.questions.length - 1 ? 'Finish' : 'Next'}
+                      <ArrowRight className="h-4 w-4 ml-2" />
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            </AnimatePresence>
           </CardContent>
         </Card>
       </div>
     </div>
   );
-}
-  
 }
