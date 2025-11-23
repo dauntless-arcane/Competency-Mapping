@@ -134,7 +134,7 @@ const filteredFinalScores = {};
 
 for (const [trait, value] of Object.entries(finalScores)) {
   // Skip internal Kolb objects
-  if (["modes", "quadrants", "dominant"].includes(trait)) continue;
+  if (["modes", "quadrants", "dominant",].includes(trait)) continue;
 
   // Skip values that are objects (quadrants, maps, areas, etc.)
   if (typeof value === "object" && value !== null) continue;
@@ -143,7 +143,7 @@ for (const [trait, value] of Object.entries(finalScores)) {
   filteredFinalScores[trait] = value;
 }
 
-const traitBreakdown = Object.entries(finalScores).map(([trait, finalScore]) => {
+const traitBreakdown = Object.entries(filteredFinalScores).map(([trait, finalScore]) => {
   const raw = ctx.rawScores?.[trait] ?? null;
   const constant = constants?.[trait] ?? 0;
 

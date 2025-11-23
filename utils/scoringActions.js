@@ -278,44 +278,38 @@ function kolb_score(ctx = {}, step = {}, test = {}, answers = [], questions = []
     }
   }
 
-  // Quadrants numeric scores
+  // Quadrants (no prefix)
   const quadrants = {
-    Kolb_Assimilative: modes.AC + modes.RO,
-    Kolb_Convergent:  modes.AC + modes.AE,
-    Kolb_Accommodative: modes.CE + modes.AE,
-    Kolb_Divergent: modes.CE + modes.RO
+    Assimilative: modes.AC + modes.RO,
+    Convergent:  modes.AC + modes.AE,
+    Accommodative: modes.CE + modes.AE,
+    Divergent: modes.CE + modes.RO
   };
 
-  // Determine dominant quadrant
+  // Dominant quadrant name
   let dominant = Object.keys(quadrants)[0];
   for (const q of Object.keys(quadrants)) {
     if (quadrants[q] > quadrants[dominant]) dominant = q;
   }
 
-  // Store detailed object in ctx.kolb (safe)
-  ctx.kolb = {
-    modes,
-    quadrants,
-    dominant
-  };
+  // Store detailed Kolb breakdown
+  ctx.kolb = { modes, quadrants, dominant };
 
-  // Store numeric traits in ctx.final (required!)
+  // Add numeric scores normally (no prefixes)
   ctx.final = ctx.final || {};
 
-  // Add raw modes
-  ctx.final.Kolb_CE = modes.CE;
-  ctx.final.Kolb_RO = modes.RO;
-  ctx.final.Kolb_AC = modes.AC;
-  ctx.final.Kolb_AE = modes.AE;
+  ctx.final.CE = modes.CE;
+  ctx.final.RO = modes.RO;
+  ctx.final.AC = modes.AC;
+  ctx.final.AE = modes.AE;
 
-  // Add quadrant numeric scores
-  ctx.final.Kolb_Assimilative = quadrants.Kolb_Assimilative;
-  ctx.final.Kolb_Convergent = quadrants.Kolb_Convergent;
-  ctx.final.Kolb_Accommodative = quadrants.Kolb_Accommodative;
-  ctx.final.Kolb_Divergent = quadrants.Kolb_Divergent;
+  ctx.final.Assimilative = quadrants.Assimilative;
+  ctx.final.Convergent = quadrants.Convergent;
+  ctx.final.Accommodative = quadrants.Accommodative;
+  ctx.final.Divergent = quadrants.Divergent;
 
-  // Dominant as number category (optional)
-  ctx.final.Kolb_Dominant_Index = Object.keys(quadrants).indexOf(dominant);
+  ctx.final.dominant = dominant;
+  ctx.final.dominantIndex = Object.keys(quadrants).indexOf(dominant);
 
   return ctx;
 }
