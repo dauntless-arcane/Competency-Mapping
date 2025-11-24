@@ -410,11 +410,15 @@ export default function TestPage() {
                 <Button variant="outline" onClick={() => setIsComplete(false)} className="flex-1 border-[#6B86B4] text-[#6B86B4] hover:bg-[#6B86B4] hover:text-white">
                   <ArrowLeft className="h-4 w-4 mr-2" /> Review Answers
                 </Button>
-                <Button onClick={handleSubmit} className="flex-1 bg-[#2E58A6] hover:bg-[#032B61] text-white" disabled={answeredQuestions < testData.questions.length}>
+                <Button onClick={handleSubmit} className="flex-1 bg-[#2E58A6] hover:bg-[#032B61] text-white" disabled= {isKolb ? false : answeredQuestions < testData.questions.length}>
                   Submit Test <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
               </div>
-              {answeredQuestions < testData.questions.length && <p className="text-xs text-red-500 mt-2">Please answer all questions before submitting</p>}
+              {!isKolb && answeredQuestions < testData.questions.length && (
+                  <p className="text-xs text-red-500 mt-2">
+                    Please answer all questions before submitting
+                  </p>
+                )}
             </CardContent>
           </Card>
         </div>
@@ -434,9 +438,8 @@ export default function TestPage() {
             <h1 className="text-2xl font-bold">{testData.name}</h1>
             <p className="text-white/90 mt-1">Question {currentQuestion + 1} of {testData.questions.length}</p>
             <div className="mt-4 bg-white/10 p-4 rounded-lg">
-              <p className="text-white text-lg">{currentQ.text?.trim() || '<--question-->'}</p>
+              <p className="text-white text-lg">Rank these statements from most like you (1) to least like you (4)</p>
             </div>
-            <p className="text-white/80 text-sm mt-3">Rank these statements from most like you (1) to least like you (4)</p>
           </div>
 
           <KolbRanker
