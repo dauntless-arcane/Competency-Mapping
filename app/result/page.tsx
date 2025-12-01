@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { AlertCircle, Filter, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import {apiClient} from "@/lib/auth/apiClient";
+import {apiClient,getUser} from "@/lib/auth/apiClient";
 interface Results {
   resultId: string;
   name: string;
@@ -31,12 +31,14 @@ export default function ResultsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+
   useEffect(() => {
     const fetchTests = async () => {
       try {
+        const user = getUser();
         setLoading(true);
         setError(null);
-        const response = await apiClient(`${process.env.NEXT_PUBLIC_API_URL}/api/users/result/testuser/`, {
+        const response = await apiClient(`${process.env.NEXT_PUBLIC_API_URL}/api/users/result/${user?.username}/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         });

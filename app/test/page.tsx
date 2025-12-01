@@ -8,7 +8,7 @@ import { AnimatePresence, motion, Reorder } from 'framer-motion';
 import { AlertCircle, ArrowLeft, ArrowRight, Brain, CheckCircle, Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { apiClient } from '@/lib/auth/apiClient';
+import { apiClient, getUser } from '@/lib/auth/apiClient';
 
 const API_BASE = `${process.env.NEXT_PUBLIC_API_URL}/api`;
 
@@ -257,11 +257,13 @@ export default function TestPage() {
     };
 
     try {
-      const response = await fetch(`${API_BASE}/users/entry`, {
+              const user = getUser();
+      
+      const response = await apiClient(`${API_BASE}/users/entry`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-username': 'testuser',
+          'x-username':  user?.username,
         },
         body: JSON.stringify(payload),
       });

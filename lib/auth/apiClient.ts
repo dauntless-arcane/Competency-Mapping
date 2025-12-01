@@ -1,81 +1,78 @@
-import { getAccessToken, setAccessToken, clearAccessToken } from "./tokenManager";
+import { getAccessToken, clearAccessToken } from "./tokenManager";
+// import { hydrateAccessToken } from "./hydrate";
 
 export async function apiClient(path: string, options: RequestInit = {}) {
-  const token = getAccessToken();
+  // 1) Try to hydrate access token (from refresh cookie)
+  // await hydrateAccessToken();
 
-  // ⭐ We use Record<string, string> to allow assigning Authorization safely
+  let token = getAccessToken();
+  console.log("Current Access Token:", token);
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    // ...(options.headers as Record<string, string> || {}),
+    ...(options.headers as Record<string, string> || {}),
   };
 
-  // ⭐ Add access token from memory
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
+  // ---- FIRST REQUEST ----
   let res = await fetch(path, {
     ...options,
-    // headers,
-    // credentials: "include", // Required for refreshToken on server
+    headers,
+    credentials: "include",
   });
 
-  // If access token expired → refresh
-  // if (res.status === 401) {
-  //   const refreshed = await refreshAccessToken();
+  // ---- FIRST 401 (TOKEN EXPIRED) ----
+  if (res.status === 401) {
+    console.warn("⚠ First 401 detected → refreshing token...");
 
-  //   if (!refreshed) {
-  //     clearAccessToken();
-  //     return res; // return original response (unauthorized)
-  //   }
+    // const refreshed = await hydrateAccessToken();
 
-  //   // ⭐ Retry original request with NEW token
-  //   const newToken = getAccessToken();
+    // If refresh failed → force logout
+    // if (!refreshed) {
+    //   console.error("❌ Refresh failed — forcing logout");
+    //   handleForceLogout();
+    //   return res;
+    // }
 
-  //   const retryHeaders: Record<string, string> = {
-  //     "Content-Type": "application/json",
-  //     ...(options.headers as Record<string, string> || {}),
-  //   };
+    // Retry with new token
+    const newToken = getAccessToken();
+    if (newToken) {
+      headers["Authorization"] = `Bearer ${newToken}`;
+    }
 
-  //   if (newToken) {
-  //     retryHeaders["Authorization"] = `Bearer ${newToken}`;
-  //   }
+    // ---- SECOND REQUEST ----
+    res = await fetch(path, {
+      ...options,
+      headers,
+      credentials: "include",
+    });
 
-  //   res = await fetch(path, {
-  //     ...options,
-  //     headers: retryHeaders,
-  //     credentials: "include",
-  //   });
-  // }
+    // ---- SECOND 401 AGAIN → INVALID ACCOUNT ----
+    if (res.status === 401) {
+      console.error("❌ Second 401 → invalid session. Redirecting to login...");
+      handleForceLogout();
+      return res;
+    }
+  }
 
   return res;
 }
 
+/** FORCE LOGOUT + REDIRECT USER */
+function handleForceLogout() {
+  clearAccessToken();              // clear memory token
+  sessionStorage.removeItem("user");
 
-// ==========================
-//      TOKEN REFRESH
-// ==========================
-export async function refreshAccessToken() {
-  try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`, {
-      method: "POST",
-      credentials: "include", // ⭐ sends refreshToken cookie
-    });
-
-    const data = await res.json();
-
-    if (!data.Status) {
-      clearAccessToken();
-      return false;
-    }
-
-    // ⭐ Save new access token to memory
-    setAccessToken(data.Token);
-
-    return true;
-
-  } catch (err) {
-    clearAccessToken();
-    return false;
+  if (typeof window !== "undefined") {
+    window.location.href = "/auth/login";   // redirect to login
   }
+}
+
+export function getUser() {
+  if (typeof window === "undefined") return null;
+  const user = sessionStorage.getItem("user");
+  return user ? JSON.parse(user) : null;
 }

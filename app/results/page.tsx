@@ -8,7 +8,7 @@ import { AlertCircle, CheckCircle, Download, Target, TrendingUp } from 'lucide-r
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart, ResponsiveContainer } from 'recharts';
-import { apiClient } from "@/lib/auth/apiClient";
+import { apiClient, getUser } from "@/lib/auth/apiClient";
 
 interface Trait {
   trait: string;
@@ -51,9 +51,11 @@ export default function ResultsPage() {
 
     const fetchResults = async () => {
       try {
+        const user = getUser();
+        
         setLoading(true);
         const response = await apiClient(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/users/result/testuser/${attemptId}`,
+          `${process.env.NEXT_PUBLIC_API_URL}/api/users/result/${user?.username}/${attemptId}`,
           {
             method: 'POST',
             headers: {
