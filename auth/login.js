@@ -276,7 +276,13 @@ router.post("/refresh", async (req, res) => {
     // rotate token
     const newTokenId = uuidv4();
     const newRefreshJwt = signRefreshToken(newTokenId, payload);
-    const newAccessToken = signAccessToken(payload);
+    const user = await User.findById(payload.id).lean();
+
+    if (!user) {
+      return res.status(401).json({ Status: false, Msg: "User not found" });
+    }
+
+    const newAccessToken = signAccessToken(user);
 
     dbToken.revoked = true;
     dbToken.replacedByTokenId = newTokenId;
@@ -390,8 +396,8 @@ router.post("/forgot", async (req, res) => {
     const user = await User.findOne({ username });
     if (!user) return res.status(404).json({ Status: false, Msg: "User not found" });
 
-    const inputDob = new Date(dob).toISOString().slice(0,10);
-    const storedDob = new Date(user.dob).toISOString().slice(0,10);
+    const inputDob = new Date(dob).toISOString().slice(0, 10);
+    const storedDob = new Date(user.dob).toISOString().slice(0, 10);
 
     if (inputDob !== storedDob)
       return res.status(403).json({ Status: false, Msg: "DOB mismatch" });

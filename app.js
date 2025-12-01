@@ -48,6 +48,33 @@ try {
 dotenv.config({ path: './.env' });
 
 // express config
+// Cors config
+app.use(function (req, res, next) {
+    res.header("Access-Control-Allow-Origin", "http://localhost:3000");
+    res.header("Access-Control-Allow-Credentials", "true");
+    res.header(
+        "Access-Control-Allow-Headers",
+        "Origin, X-Requested-With, Content-Type, Accept, Authorization, x-username, x-email, x-token"
+    );
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+
+if (req.method === "OPTIONS") {
+    res.header("Access-Control-Allow-Origin", "http://localhost:3000");
+    res.header("Access-Control-Allow-Credentials", "true");
+    res.header(
+        "Access-Control-Allow-Headers",
+        "Origin, X-Requested-With, Content-Type, Accept, Authorization, x-username, x-email, x-token"
+    );
+    res.header(
+        "Access-Control-Allow-Methods",
+        "GET, POST, PUT, DELETE, OPTIONS"
+    );
+    return res.status(200).end(); // MUST send headers + end response
+}
+
+
+    next();
+});
 app.use(bodyParser.json());
 
 // --------------- Metrics Middleware (Before all routes) ---------------
@@ -71,16 +98,7 @@ app.use((req, res, next) => {
 });
 
 // ------------------------- CORS -------------------------
-app.use(function (req, res, next) {
-    console.log(req.headers.origin);
-    console.log(req.url);
-    console.log(req.headers.referer);
 
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Headers', 'Origin , X-Requested-With, Content-Type, Accept,x-username, x-email, x-token');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    next();
-});
 
 // ------------------ Your Routes --------------------------
 app.use("/auth", require('./auth/login'));
