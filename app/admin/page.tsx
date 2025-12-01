@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { mockUser, mockScores, mockCourses, mockReports } from '@/lib/mock-data';
 import { Users, BookOpen, TrendingUp, BarChart3, Plus, Eye } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+// import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function AdminDashboard() {
   // Mock admin data
@@ -122,7 +122,7 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent>
               <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
+                {/* <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={categoryAverages}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                     <XAxis 
@@ -152,7 +152,7 @@ export default function AdminDashboard() {
                       radius={[4, 4, 0, 0]}
                     />
                   </BarChart>
-                </ResponsiveContainer>
+                </ResponsiveContainer> */}
               </div>
             </CardContent>
           </Card>
