@@ -12,7 +12,7 @@ interface Trait {
   trait: string;
   description: string;
   _id: string;
-  score: string; // numeric string from backend
+  score: number;
 }
 
 interface RiasecResultProps {
@@ -57,7 +57,7 @@ export default function RiasecResult({ result }: RiasecResultProps) {
   
   // Prepare chart data
   const chartData = result.traitBreakdown.map((t) => {
-    const score = parseInt(t.score);
+    const score = Number(t.score);
 
     return {
       category: t.trait,
@@ -100,7 +100,7 @@ export default function RiasecResult({ result }: RiasecResultProps) {
           <ResultTraitCards
             traits={result.traitBreakdown.map((t) => ({
               ...t,
-              score: parseInt(t.score),
+              score: Number(t.score),
               description: RIASEC_DESCRIPTIONS[t.trait] ?? t.description,
             }))}
           />

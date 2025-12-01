@@ -12,7 +12,7 @@ interface Trait {
   trait: string;
   description: string;
   _id: string;
-  score: string;
+  score: number;
 }
 
 interface OceanResultProps {
@@ -38,7 +38,7 @@ const OCEAN_COLORS: Record<string, string> = {
 export default function OceanTestResult({ result }: OceanResultProps) {
   // Convert trait breakdown → chart format
   const chartData = result.traitBreakdown.map((t) => {
-    const score = parseInt(t.score);
+    const score = Number(t.score);
 
     return {
       category: t.trait,
@@ -99,7 +99,7 @@ export default function OceanTestResult({ result }: OceanResultProps) {
                 description: CUSTOM_OCEAN_DESCRIPTIONS[t.trait] ?? t.description,
 
                 // force score to be numeric (needed for percent display)
-                score: parseInt(t.score)+"%",
+                score: Number(t.score),
                 }))}
             />
         </ResultSection>

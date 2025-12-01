@@ -20,6 +20,7 @@ interface Trait {
   trait: string;
   description: string;
   _id: string;
+  score: number;
 }
 
 interface FullResult {

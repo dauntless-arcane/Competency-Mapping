@@ -111,22 +111,31 @@ function migrateSavedAnswers(raw: any): AnswersState {
       continue;
     }
     // case 2: old Kolb as JSON-string
-    if (typeof v === 'string') {
+    if (typeof v === "string") {
       try {
         const arr = JSON.parse(v);
+
         if (Array.isArray(arr)) {
           const ranked: KolbRankedItem[] = arr
+            .filter(Boolean) // remove null/undefined before mapping
             .map((it: any, i: number) => {
-              if (!it) return null;
-              const optionId = it.optionId ?? it.mode ?? it._id ?? `opt_${i}`;
-              return { optionId, label: it.label ?? '', mode: it.mode ?? it.optionId ?? undefined, rank: Number(it.rank ?? (i + 1)) };
-            })
-            .filter(Boolean);
-          out[qid] = { kind: 'kolb', ranked };
+              const optionId =
+                it.optionId ?? it.mode ?? it._id ?? `opt_${i}`;
+
+              return {
+                optionId,
+                label: it.label ?? "",
+                mode: it.mode ?? it.optionId ?? undefined,
+                rank: Number(it.rank ?? i + 1)
+              } as KolbRankedItem;
+            });
+
+          out[qid] = { kind: "kolb", ranked };
           continue;
         }
-      } catch {}
+      } catch { }
     }
+
     // case 3: already structured (maybe from a previous canonical save)
     if (v && typeof v === 'object') {
       if (v.kind === 'mcq' && typeof v.value === 'number') {
@@ -319,8 +328,8 @@ export default function TestPage() {
     }
 
     const payload = serializeAnswersForSubmit(answers, surveyId || 'unknown');
-        const user = getUser();
-    
+    const user = getUser();
+
     try {
       const response = await apiClient(`${API_BASE}/users/entry`, {
         method: 'POST',
@@ -342,7 +351,7 @@ export default function TestPage() {
     } finally {
       try {
         localStorage.removeItem(BUFFER_KEY);
-      } catch {}
+      } catch { }
       setIsComplete(true);
     }
   };
@@ -412,15 +421,15 @@ export default function TestPage() {
                 <Button variant="outline" onClick={() => setIsComplete(false)} className="flex-1 border-[#6B86B4] text-[#6B86B4] hover:bg-[#6B86B4] hover:text-white">
                   <ArrowLeft className="h-4 w-4 mr-2" /> Review Answers
                 </Button>
-                <Button onClick={handleSubmit} className="flex-1 bg-[#2E58A6] hover:bg-[#032B61] text-white" disabled= {isKolb ? false : answeredQuestions < testData.questions.length}>
+                <Button onClick={handleSubmit} className="flex-1 bg-[#2E58A6] hover:bg-[#032B61] text-white" disabled={isKolb ? false : answeredQuestions < testData.questions.length}>
                   Submit Test <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
               </div>
               {!isKolb && answeredQuestions < testData.questions.length && (
-                  <p className="text-xs text-red-500 mt-2">
-                    Please answer all questions before submitting
-                  </p>
-                )}
+                <p className="text-xs text-red-500 mt-2">
+                  Please answer all questions before submitting
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>

@@ -28,6 +28,7 @@ interface Trait {
   trait: string;
   description: string;
   _id: string;
+  score: number;
 }
 
 interface FullResult {
@@ -171,7 +172,7 @@ export default function ResultsPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <ResultSection>
-            <ResultRadarChart data={chartData} />
+            <ResultRadarChart data={chartData} maxValue={0} />
           </ResultSection>
 
           <ResultSection>
