@@ -38,7 +38,7 @@ export function ResultTraitCards({ traits }: { traits: Trait[] }) {
                   <div>
                     <h4 className="font-semibold text-[#032B61]">{t.trait}</h4>
                     <div className={`text-lg font-bold ${getColor(score)}`}>
-                      {score}%
+                      {score}
                     </div>
                   </div>
                 </div>

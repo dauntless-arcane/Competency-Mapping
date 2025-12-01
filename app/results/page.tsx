@@ -2,6 +2,7 @@
 
 import { MainLayout } from "@/components/layout/main-layout";
 import OceanTestResult from "@/components/result-models/OceanTest-Result";
+import RiasecResult from "@/components/result-models/riasec-result";
 import {
   ResultHeader,
   ResultOverallScore,
@@ -129,6 +130,13 @@ export default function ResultsPage() {
     </MainLayout>
   );
 }
+  else if (result.surveyId === "2CF5A30") {
+    return (
+      <MainLayout>
+        <RiasecResult  result={result} />
+      </MainLayout>
+    );  
+  }
   return (
     <MainLayout>
       <div className="space-y-8">

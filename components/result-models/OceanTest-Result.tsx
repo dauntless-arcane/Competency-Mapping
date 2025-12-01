@@ -1,12 +1,11 @@
 'use client';
 
 import {
-    ResultHeader,
-    ResultOverallScore,
-    ResultRadarChart,
-    ResultSection,
-    ResultSummary,
-    ResultTraitCards,
+  ResultHeader,
+  ResultOverallScore,
+  ResultRadarChart,
+  ResultSection,
+  ResultTraitCards
 } from "@/components/result-template";
 
 interface Trait {
@@ -56,15 +55,15 @@ export default function OceanTestResult({ result }: OceanResultProps) {
 
   const CUSTOM_OCEAN_DESCRIPTIONS: Record<string, string> = {
   Openness:
-    "You tend to be imaginative, curious, and open to exploring new ideas, experiences, and perspectives.",
+    "Openness to Experience (O) is the personality trait of seeking new experience and intellectual pursuits. High scores may day dream a lot. Low scorers may be very down to earth and practical.",
   Conscientiousness:
-    "You are organized, responsible, and dependable, with a strong sense of duty and self-discipline.",
+    "Conscientiousness (C) is the personality trait of being honest and hardworking. High scorers tend to follow rules and prefer clean homes. Low scorers may be messy and cheat others to get ahead.",
   Extraversion:
-    "You draw energy from social interaction and enjoy being expressive, outgoing, and enthusiastic.",
+    "Extroversion (E) is the personality trait of seeking fulfillment from sources outside the self or in community. High scorers tend to be very social while low scorers prefer to work on their projects alone or with a few close friends.",
   Agreeableness:
-    "You value harmony, empathy, and cooperation, often prioritizing others' needs and maintaining positive relationships.",
+    "Agreeableness (A) reflects much individuals adjust their behavior to suit others. High scorers are typically polite and like people. Low scorers tend to 'tell it like it is' and may be more competitive.",
   Neuroticism:
-    "You may experience emotional fluctuations, sensitivity to stress, or heightened emotional awareness.",
+    "Neuroticism (N) is the personality trait of being emotionally reactive and vulnerable to stress. High scorers may be anxious, moody, or easily upset, while low scorers tend to be more emotionally stable and resilient.",
 };
 
   return (
@@ -100,7 +99,7 @@ export default function OceanTestResult({ result }: OceanResultProps) {
                 description: CUSTOM_OCEAN_DESCRIPTIONS[t.trait] ?? t.description,
 
                 // force score to be numeric (needed for percent display)
-                score: parseInt(t.score),
+                score: parseInt(t.score)+"%",
                 }))}
             />
         </ResultSection>
@@ -108,14 +107,7 @@ export default function OceanTestResult({ result }: OceanResultProps) {
 
       </div>
 
-      {/* SUMMARY */}
-      <ResultSection>
-        <ResultSummary
-          summary={result.overallSummary}
-          status={result.TestStatus}
-          surveyId={result.surveyId}
-        />
-      </ResultSection>
+      
 
     </div>
   );
