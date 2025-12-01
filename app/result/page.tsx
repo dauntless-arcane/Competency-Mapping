@@ -75,11 +75,7 @@ export default function ResultsPage() {
     </div>
 
     <div className="flex flex-col md:flex-row gap-4 items-end md:items-center text-sm text-[#032B61]">
-      <div className="flex flex-col items-end">
-        <span className="font-semibold text-[#2E58A6]">Score</span>
-        <span className="text-lg font-bold">{0}%</span>
-      </div>
-
+      
       <div className="flex flex-col items-end">
         <span className="font-semibold text-[#2E58A6]">Level</span>
         <span className="text-lg font-bold">{result.level || 'N/A'}</span>

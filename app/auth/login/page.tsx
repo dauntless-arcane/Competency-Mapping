@@ -23,50 +23,50 @@ export default function LoginPage() {
   const [apiError, setApiError] = useState("");
 
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setApiError("");
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setApiError("");
 
-    try {
-      const res = await fetch(`${API_BASE}/login`, {
-        method: "POST",
-        credentials: "include", // needed for refreshToken cookie
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData)
-      });
+  try {
+    const res = await fetch(`${API_BASE}/login`, {
+      method: "POST",
+      credentials: "include", // needed for refreshToken cookie
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(formData)
+    });
 
-      const data = await res.json();
+    const data = await res.json();
 
-      if (!data.Status) {
-        setApiError(data.Msg || "Login failed");
-        return;
-      }
-
-      // ⭐ STORE ACCESS TOKEN IN MEMORY ONLY
-      setAccessToken(data.Token);
-      Cookies.set("accessToken", data.Token, {
-        path: "/",
-        sameSite: "lax",
-        secure: false,
-      });
-
-      // Store user info if needed
-      sessionStorage.setItem("user", JSON.stringify(data.User));
-
-      // REDIRECT BASED ON ROLES
-      if (data.User.roles.includes("admin")) router.push("/admin");
-      else router.push("/dashboard");
-
-    } catch (err) {
-      setApiError("Server not responding");
+    if (!data.Status) {
+      setApiError(data.Msg || "Login failed");
+      return;
     }
-  };
+
+    // ⭐ STORE ACCESS TOKEN IN MEMORY ONLY
+    setAccessToken(data.Token);
+    Cookies.set("accessToken", data.Token, {
+  path: "/",
+  sameSite: "lax",
+  secure: false,
+});
+
+    // Store user info if needed
+    sessionStorage.setItem("user", JSON.stringify(data.User));
+
+    // REDIRECT BASED ON ROLES
+    if (data.User.roles.includes("admin")) router.push("/admin");
+    else router.push("/dashboard");
+
+  } catch (err) {
+    setApiError("Server not responding");
+  }
+};
 
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#F2E5D8] to-white flex items-center justify-center p-4">
       <Card className="w-full max-w-md shadow-xl border-0">
-
+        
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <div className="p-3 bg-[#2E58A6] rounded-full">
@@ -86,7 +86,7 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-
+            
             <div className="space-y-2">
               <Label htmlFor="username" className="text-[#032B61]">Username</Label>
               <Input
@@ -112,7 +112,7 @@ export default function LoginPage() {
               />
             </div>
 
-            <Button
+            <Button 
               type="submit"
               className="w-full bg-[#2E58A6] hover:bg-[#032B61] text-white"
               disabled={!formData.username || !formData.password}
