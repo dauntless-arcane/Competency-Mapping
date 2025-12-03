@@ -27,11 +27,11 @@ router.use(express.json({ limit: '10kb' }));
 router.use(cookieParser());
 router.use(cors({ origin: process.env.FRONTEND_ORIGIN || "*", credentials: true }));
 
-router.use(rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 200,
-  message: { Status: false, Error: true, Msg: "Too many requests" }
-}));
+// router.use(rateLimit({
+//   windowMs: 15 * 60 * 1000,
+//   max: 200,
+//   message: { Status: false, Error: true, Msg: "Too many requests" }
+// }));
 
 // ------------------ HELPERS ------------------
 function getIp(req) {

@@ -1,78 +1,96 @@
+// watchers/surveyResponseWatcher.js
+
 const mongoose = require('mongoose');
 const { generateResultFromSurvey } = require('../utils/resultGenerator');
 const Result = require('../models/ResultSchema');
+const { acquireLock } = require('../utils/lock');
 
 async function processPendingSurveyResponses() {
   try {
     const collection = mongoose.connection.collection('surveyresponses');
-
-    // Fetch all SurveyResponses
     const allResponses = await collection.find({}).toArray();
+
     console.log(`📦 Found ${allResponses.length} total SurveyResponses`);
 
     let processedCount = 0;
 
     for (const doc of allResponses) {
+      // skip if result already exists
       const exists = await Result.findOne({ attemptId: doc._id });
-      if (!exists) {
-        console.log(`⚙️ [pending] Generating result for: ${doc._id}`);
-        try {
-          await generateResultFromSurvey(doc);
-          processedCount++;
-        } catch (err) {
-          console.error(`❌ [pending] Failed for ${doc._id}:`, err.message);
-        }
+      if (exists) continue;
+
+      const lockKey = `result_${doc._id}`;
+      const gotLock = await acquireLock(lockKey);
+
+      if (!gotLock) {
+        console.log(`⛔ Skipping pending ${doc._id} — locked by another worker`);
+        continue;
+      }
+
+      console.log(`⚙️ [pending] Processing ${doc._id}`);
+
+      try {
+        await generateResultFromSurvey(doc);
+        processedCount++;
+      } catch (err) {
+        console.error(`❌ [pending] Failed for ${doc._id}:`, err.message);
       }
     }
 
     console.log(`✅ [pending] Completed. Generated ${processedCount} new results.`);
   } catch (err) {
-    console.error('❌ [pending] Error processing existing SurveyResponses:', err.message);
+    console.error('❌ [pending] Error:', err.message);
   }
 }
 
 async function startSurveyResponseWatcher() {
   try {
-    // ✅ Connect to MongoDB
     if (mongoose.connection.readyState === 0) {
-      await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/test', {
+      await mongoose.connect(process.env.MONGO_URI, {
         useNewUrlParser: true,
-        useUnifiedTopology: true
+        useUnifiedTopology: true,
       });
-      console.log('✅ Connected to MongoDB (SurveyResponse watcher)');
+      console.log("✅ Connected to MongoDB (SurveyResponse watcher)");
     }
 
-    // 🔄 Process pending SurveyResponses before starting watch
+    // Run pending repair step at startup
     await processPendingSurveyResponses();
 
-    // 👀 Start watching for new inserts
+    // Start watching new inserts
     const collection = mongoose.connection.collection('surveyresponses');
     const changeStream = collection.watch([{ $match: { operationType: 'insert' } }]);
 
     changeStream.on('change', async (change) => {
+      const doc = change.fullDocument;
+      const lockKey = `result_${doc._id}`;
+
+      const gotLock = await acquireLock(lockKey);
+      if (!gotLock) {
+        console.log(`⛔ [watcher] Skipping ${doc._id} — another node is processing`);
+        return;
+      }
+
+      console.log(`📥 [watcher] Processing new SurveyResponse ${doc._id}`);
+
       try {
-        const doc = change.fullDocument;
-        console.log(`📥 [watcher] New SurveyResponse detected: ${doc._id}`);
         await generateResultFromSurvey(doc);
       } catch (err) {
-        console.error('❌ [watcher] Error generating result:', err.message);
+        console.error(`❌ [watcher] Failed for ${doc._id}:`, err.message);
       }
     });
 
     changeStream.on('error', (err) => {
-      console.error('⚠️ [watcher] Change stream error:', err);
-      setTimeout(startSurveyResponseWatcher, 5000); // reconnect after crash
+      console.error("⚠️ Change stream error:", err);
+      setTimeout(startSurveyResponseWatcher, 5000);
     });
 
-    console.log('👀 [watcher] Listening for new SurveyResponse inserts...');
+    console.log("👀 [watcher] Listening for SurveyResponse inserts...");
   } catch (err) {
-    console.error('❌ [watcher] Failed to start watcher:', err.message);
+    console.error("❌ [watcher] Failed:", err.message);
   }
 }
 
-// Run directly (node watchers/surveyResponseWatcher.js)
-if (require.main === module) {
-  startSurveyResponseWatcher();
-}
+// Run directly
+if (require.main === module) startSurveyResponseWatcher();
 
 module.exports = { startSurveyResponseWatcher };
