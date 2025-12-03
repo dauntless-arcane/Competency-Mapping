@@ -1,18 +1,17 @@
 require("dotenv").config();
 console.log("🚀 Worker started...");
 
-const { startSurveyResponseWatcher } = require("./watchers/surveyResponseWatcher");
-const { startTestIndexWatcher } = require("./watchers/testIndexWatcher");
+require("./workers/resultWorker");   // Queue processor for results
+const { startTestIndexWatcher } = require("./watchers/IndexWatcher");
 
 (async () => {
-  try {
-    console.log("📡 Starting workers/watchers...");
-        
-    startSurveyResponseWatcher();
-    startTestIndexWatcher();
+    try {
+        console.log("📡 Starting workers/watchers...");
 
-    console.log("✅ Worker initialized successfully");
-  } catch (err) {
-    console.error("❌ Worker error:", err);
-  }
+        startTestIndexWatcher();
+
+        console.log("✅ Worker initialized successfully");
+    } catch (err) {
+        console.error("❌ Worker error:", err);
+    }
 })();
