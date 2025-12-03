@@ -1,7 +1,7 @@
 require("dotenv").config();
 console.log("🚀 Worker started...");
 
-require("./workers/resultWorker");   // Queue processor for results
+require("./watchers/resultWorker");   // Queue processor for results
 const { startTestIndexWatcher } = require("./watchers/IndexWatcher");
 
 (async () => {
