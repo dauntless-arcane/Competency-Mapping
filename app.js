@@ -118,8 +118,8 @@ app.get('/metrics', async (req, res) => {
 });
 
 // ------------------ Server -----------------------
-const serve = app.listen(3010, () => {
-    console.log("🚀 Server running on 3010");
+const serve = app.listen(process.env.PORT || 3010, () => {
+    console.log("🚀 Server running on " + (process.env.PORT || 3010));
 });
 
 // DB.connectDB();
