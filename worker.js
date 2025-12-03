@@ -18,7 +18,7 @@ const { Worker } = require("bullmq");
 const { redisConfig } = require("./database/redis");
 
 // ✔ SINGLE redisConnection definition (DO NOT DUPLICATE)
-console.log("🔗 Setting up Redis connection for Workers",redis);
+// console.log("🔗 Setting up Redis connection for Workers",redis);
 const redisConnection = {
   ...redisConfig,
   maxRetriesPerRequest: null,
