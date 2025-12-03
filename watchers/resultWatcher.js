@@ -1,5 +1,5 @@
 const { Worker } = require("bullmq");
-const { redis } = require("../redis/connection");
+const { redis } = require("../database/redis");
 const SurveyResponse = require("../models/suvey-response");
 const { generateResultFromSurvey } = require("../utils/resultGenerator");
 
