@@ -3,7 +3,7 @@ require("dotenv").config();
 const mongoose = require("mongoose");
 
 const { startSurveyResponseWatcher } = require("./watchers/resultWatcher");
-const { startTestIndexWatcher, buildSingleTestIndex } = require("./watchers/testIndexWatcher");
+const { startTestIndexWatcher, buildSingleTestIndex } = require("./watchers/IndexWatcher");
 
 // BullMQ queues
 const resultQueue = require("./queues/resultQueue");
