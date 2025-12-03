@@ -1,4 +1,6 @@
 const { Redis } = require("ioredis");
+const dotenv = require('dotenv');
+
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
 const redis = new Redis({
