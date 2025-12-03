@@ -122,5 +122,3 @@ const serve = app.listen(process.env.PORT || 3010, () => {
     console.log("🚀 Server running on " + (process.env.PORT || 3010));
 });
 
-// DB.connectDB();
-// startSurveyResponseWatcher();

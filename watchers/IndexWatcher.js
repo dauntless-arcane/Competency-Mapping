@@ -2,7 +2,6 @@
 const mongoose = require('mongoose');
 const Test = require('../models/TestsSchema');
 const Question = require('../models/questionsSchema');
-const { acquireLock } = require('../utils/lock');
 
 const INDEX_COLLECTION = 'test_index';
 
@@ -11,6 +10,7 @@ const INDEX_COLLECTION = 'test_index';
  */
 async function buildSingleTestIndex(surveyIdOrObjectId) {
   try {
+    // 🧩 Fetch the test either by surveyId or fallback _id (for backward support)
     const test =
       (await Test.findOne({ surveyId: surveyIdOrObjectId })) ||
       (await Test.findById(surveyIdOrObjectId));
@@ -19,28 +19,17 @@ async function buildSingleTestIndex(surveyIdOrObjectId) {
       console.warn(`⚠️ Test not found for ID: ${surveyIdOrObjectId}`);
       return;
     }
-
     if (!test.surveyId) {
-      console.error(`❌ Test ${test._id} missing surveyId — aborting index build`);
+      console.error(
+        `❌ Test ${test._id} is missing surveyId — aborting index build to avoid mixing.`
+      );
       return;
     }
 
-    // -------------------------
-    // ⭐ Acquire distributed lock
-    // -------------------------
-    const lockKey = `test_index_${test.surveyId}`;
-    const gotLock = await acquireLock(lockKey);
+    // 🎯 Strictly match all related questions by surveyId
+    const questions = await Question.find({ surveyId: test.surveyId }).sort({ testIndex: 1 }).lean();
 
-    if (!gotLock) {
-      console.log(`⛔ Skipping index update for ${test.surveyId} — locked elsewhere`);
-      return;
-    }
-
-    // proceed with indexing
-    const questions = await Question.find({ surveyId: test.surveyId })
-      .sort({ testIndex: 1 })
-      .lean();
-
+    // 🧠 Prepare the index document (aligned with latest schema)
     const testIndexDoc = {
       surveyId: test.surveyId,
       name: test.name,
@@ -57,18 +46,18 @@ async function buildSingleTestIndex(surveyIdOrObjectId) {
 
     const collection = mongoose.connection.collection(INDEX_COLLECTION);
 
-    // -------------------------
-    // ⭐ Upsert (safe, idempotent)
-    // -------------------------
+    // 🔁 Upsert by surveyId
     await collection.updateOne(
       { surveyId: test.surveyId },
       { $set: testIndexDoc },
       { upsert: true }
     );
 
-    console.log(`✅ Indexed test: ${test.name} (${test.surveyId}) — ${questions.length} Qs`);
+    console.log(
+      `✅ Indexed test: ${test.name} (${test.surveyId}) — ${questions.length} questions`
+    );
   } catch (err) {
-    console.error(`❌ Error building index for ${surveyIdOrObjectId}:`, err.message);
+    console.error(`❌ Error building test index for ${surveyIdOrObjectId}:`, err.message);
   }
 }
 
@@ -79,19 +68,19 @@ async function buildAllTestIndexes() {
   try {
     const collection = mongoose.connection.collection(INDEX_COLLECTION);
     const tests = await Test.find({});
-
     if (!tests.length) {
       console.log('⚠️ No tests found to index.');
       return;
     }
 
-    console.log(`🧰 Rebuilding index for ${tests.length} tests...`);
+    console.log(`🧰 Rebuilding index for ${tests.length} tests (strict surveyId match)...`);
 
+    // Optional cleanup
     await collection.deleteMany({});
 
     for (const t of tests) {
       if (!t.surveyId) {
-        console.warn(`⚠️ Skipping test ${t._id} (missing surveyId)`);
+        console.warn(`⚠️ Skipping test ${t._id} (missing surveyId).`);
         continue;
       }
       await buildSingleTestIndex(t.surveyId);
@@ -99,24 +88,25 @@ async function buildAllTestIndexes() {
 
     console.log('✅ Rebuild complete.');
   } catch (err) {
-    console.error('❌ Error rebuilding indexes:', err.message);
+    console.error('❌ Error rebuilding all indexes:', err.message);
   }
 }
 
 /**
- * Starts the change streams to automatically keep the index updated.
+ * Starts the change streams to automatically keep the test index up to date.
  */
 async function startTestIndexWatcher() {
   try {
     if (mongoose.connection.readyState === 0) {
       await mongoose.connect(process.env.MONGO_URI);
-      console.log('✅ Connected to MongoDB (TestIndex watcher)');
+      console.log('✅ Connected to MongoDB (watcher)');
     }
 
-    // Build indexes at startup
+    // 🏗 Build current indexes on startup
     await buildAllTestIndexes();
 
-    console.log('👀 Watching Tests & Questions...');
+    // 👀 Start watching both collections
+    console.log('👀 Watching Tests & Questions for surveyId updates...');
 
     const testStream = Test.watch([
       { $match: { operationType: { $in: ['insert', 'update', 'replace'] } } }
@@ -128,26 +118,27 @@ async function startTestIndexWatcher() {
 
     testStream.on('change', async (change) => {
       const surveyId = change.fullDocument?.surveyId;
-      if (!surveyId) {
-        console.warn('⚠️ Test update without surveyId — skipping.');
-        return;
+      if (surveyId) {
+        console.log(`🧩 Test changed for surveyId ${surveyId}`);
+        await buildSingleTestIndex(surveyId);
+      } else {
+        console.warn('⚠️ Test change without surveyId — skipping.');
       }
-      console.log(`🧩 Test changed → rebuilding index for ${surveyId}`);
-      await buildSingleTestIndex(surveyId);
     });
 
     questionStream.on('change', async (change) => {
       const surveyId = change.fullDocument?.surveyId;
-      if (!surveyId) {
-        console.warn('⚠️ Question update without surveyId — skipping.');
-        return;
+      if (surveyId) {
+        console.log(`📘 Question changed for surveyId ${surveyId}`);
+        await buildSingleTestIndex(surveyId);
+      } else {
+        console.warn('⚠️ Question change without surveyId — skipping.');
       }
-      console.log(`📘 Questions changed → rebuilding index for ${surveyId}`);
-      await buildSingleTestIndex(surveyId);
     });
 
+    // 🧯 Auto-restart if streams break
     const restart = () => {
-      console.warn('⚠️ Stream closed — restarting watcher in 3s...');
+      console.warn('⚠️ Change stream closed — restarting watcher in 3s...');
       setTimeout(startTestIndexWatcher, 3000);
     };
 
@@ -155,9 +146,8 @@ async function startTestIndexWatcher() {
     questionStream.on('error', restart);
     testStream.on('close', restart);
     questionStream.on('close', restart);
-
   } catch (err) {
-    console.error('❌ Failed to start TestIndexWatcher:', err.message);
+    console.error('❌ Failed to start watcher:', err.message);
   }
 }
 
