@@ -2,6 +2,7 @@
 require("dotenv").config();
 const mongoose = require("mongoose");
 
+// Watchers
 const { startSurveyResponseWatcher } = require("./watchers/resultWatcher");
 const { startTestIndexWatcher, buildSingleTestIndex } = require("./watchers/IndexWatcher");
 
@@ -9,7 +10,7 @@ const { startTestIndexWatcher, buildSingleTestIndex } = require("./watchers/Inde
 const resultQueue = require("./queues/resultQueue");
 const indexQueue = require("./queues/indexQueue");
 
-// Models / utils for workers
+// Models / Utils
 const SurveyResponse = require("./models/suvey-response");
 const { generateResultFromSurvey } = require("./utils/resultGenerator");
 
@@ -17,15 +18,24 @@ const { generateResultFromSurvey } = require("./utils/resultGenerator");
 const { Worker } = require("bullmq");
 const { redisConfig } = require("./database/redis");
 
-// ✔ SINGLE redisConnection definition (DO NOT DUPLICATE)
-// console.log("🔗 Setting up Redis connection for Workers",redis);
+// -----------------------------------------
+// ✔ SINGLE Redis connection used everywhere
+// -----------------------------------------
 const redisConnection = {
   ...redisConfig,
   maxRetriesPerRequest: null,
-  enableReadyCheck: false
+  enableReadyCheck: false,
 };
 
-// =============== RESULT WORKER ===============
+console.log("🔗 Redis connected for workers:", {
+  host: redisConnection.host,
+  port: redisConnection.port,
+});
+
+
+// ===================================================
+// 🟩 RESULT WORKER — consumes resultQueue jobs only
+// ===================================================
 new Worker(
   "resultQueue",
   async (job) => {
@@ -44,27 +54,36 @@ new Worker(
   { connection: redisConnection }
 );
 
-// =============== INDEX WORKER ===============
+
+// ===================================================
+// 🟦 INDEX WORKER — consumes indexQueue jobs only
+// ===================================================
 new Worker(
   "indexQueue",
   async (job) => {
     const surveyId = job.data.surveyId;
     console.log(`⚙️ Processing index job: ${surveyId}`);
+
     await buildSingleTestIndex(surveyId);
+
+    console.log(`✅ Indexed: ${surveyId}`);
   },
   { connection: redisConnection }
 );
 
-// =============== WATCHERS ===============
+
+// ===================================================
+// 🚀 START WATCHERS
+// ===================================================
 (async () => {
   try {
     console.log("🚀 Worker starting…");
 
-    await startSurveyResponseWatcher();
-    await startTestIndexWatcher();
+    await startSurveyResponseWatcher();  // listens → adds jobs → queue only
+    await startTestIndexWatcher();       // listens → adds jobs → queue only
 
-    console.log("✅ Worker initialized");
+    console.log("✅ Worker initialized successfully");
   } catch (err) {
-    console.error("❌ Worker startup error:", err.message);
+    console.error("❌ Worker startup error:", err);
   }
 })();
