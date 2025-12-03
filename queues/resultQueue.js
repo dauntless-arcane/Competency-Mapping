@@ -1,7 +1,7 @@
 const { Queue } = require("bullmq");
 
-const { redis } = require("../database/redis");
+const { redisConfig } = require("../database/redis");
 
 module.exports = new Queue("resultQueue", {
-  connection: redis,
+  connection: redisConfig,
 });
