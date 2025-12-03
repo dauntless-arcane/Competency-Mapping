@@ -36,7 +36,7 @@ module.exports = {
     {
       name: "psych-worker",
       script: "./worker.js",
-      instances: "max",               // each CPU gets a worker
+      instances: 1,               // each CPU gets a worker
       exec_mode: "cluster",
       watch: false,
 
