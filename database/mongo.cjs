@@ -1,8 +1,6 @@
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const path = require('path');
-const { startTestIndexWatcher } = require('../watchers/IndexWatcher');
-const { startSurveyResponseWatcher } = require('../watchers/resultWatcher');
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
@@ -17,8 +15,6 @@ async function connectDB() {
     try {
         await mongoose.connect(uri); // ✅ No deprecated options needed in v7+
         console.log('✅ MongoDB connected successfully');
-        // startTestIndexWatcher();
-        // startSurveyResponseWatcher()
     } catch (error) {
         console.error('❌ MongoDB connection error:', error.message);
         setTimeout(connectDB, 5000); // Retry every 5 seconds
