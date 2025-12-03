@@ -47,14 +47,14 @@ const SurveyResponseSchema = new mongoose.Schema({
 });
 
 // auto generate result
-SurveyResponseSchema.post('save', async function (doc) {
-  try {
-    console.log(`📩 [local] SurveyResponse saved: ${doc.surveyId}`);
-    await generateResultFromSurvey(doc);
-  } catch (err) {
-    console.error('❌ [local] Error auto-generating result:', err.message);
-  }
-});
+// SurveyResponseSchema.post('save', async function (doc) {
+//   try {
+//     console.log(`📩 [local] SurveyResponse saved: ${doc.surveyId}`);
+//     await generateResultFromSurvey(doc);
+//   } catch (err) {
+//     console.error('❌ [local] Error auto-generating result:', err.message);
+//   }
+// });
 
 module.exports =
   mongoose.models.SurveyResponse ||

@@ -8,16 +8,23 @@ const INDEX_COLLECTION = "test_index";
 
 async function buildSingleTestIndex(surveyId) {
   try {
+    // Normalize ObjectId/string
+    let idQuery = surveyId;
+    if (mongoose.isValidObjectId(surveyId)) {
+      idQuery = new mongoose.Types.ObjectId(surveyId);
+    }
+
+    // Try both surveyId and _id
     const test =
-      (await Test.findOne({ surveyId })) ||
-      (await Test.findById(surveyId));
+      (await Test.findOne({ surveyId: idQuery })) ||
+      (await Test.findById(idQuery));
 
     if (!test) {
       console.warn(`⚠️ Test not found for ${surveyId}`);
       return;
     }
 
-    const questions = await Question.find({ surveyId })
+    const questions = await Question.find({ surveyId: test.surveyId })
       .sort({ testIndex: 1 })
       .lean();
 
@@ -52,11 +59,13 @@ async function buildSingleTestIndex(surveyId) {
 async function buildAllTestIndexes() {
   try {
     const tests = await Test.find({});
+
     for (const t of tests) {
       if (t.surveyId) {
-        await indexQueue.add("buildIndex", { surveyId: t.surveyId });
+        indexQueue.add("buildIndex", { surveyId: t.surveyId.toString() });
       }
     }
+
     console.log("🏗 All test indexes queued.");
   } catch (err) {
     console.error("❌ buildAllTestIndexes:", err.message);
@@ -78,13 +87,15 @@ async function startTestIndexWatcher() {
     testStream.on("change", (change) => {
       const surveyId = change.fullDocument?.surveyId;
       if (!surveyId) return;
-      indexQueue.add("buildIndex", { surveyId });
+
+      indexQueue.add("buildIndex", { surveyId: surveyId.toString() });
     });
 
     questionStream.on("change", (change) => {
       const surveyId = change.fullDocument?.surveyId;
       if (!surveyId) return;
-      indexQueue.add("buildIndex", { surveyId });
+
+      indexQueue.add("buildIndex", { surveyId: surveyId.toString() });
     });
 
     console.log("👀 Watching Test & Questions…");

@@ -2,7 +2,6 @@
 const mongoose = require("mongoose");
 const Result = require("../models/ResultSchema");
 const SurveyResponse = require("../models/suvey-response");
-const { generateResultFromSurvey } = require("../utils/resultGenerator");
 const resultQueue = require("../queues/resultQueue");
 
 async function processPendingSurveyResponses() {
@@ -17,7 +16,9 @@ async function processPendingSurveyResponses() {
     for (const doc of all) {
       const exists = await Result.findOne({ attemptId: doc._id });
       if (!exists) {
-        await resultQueue.add("generateResult", { attemptId: doc._id });
+        await resultQueue.add("generateResult", {
+          attemptId: doc._id.toString(),
+        });
         count++;
       }
     }
@@ -47,7 +48,9 @@ async function startSurveyResponseWatcher() {
 
     changeStream.on("change", (change) => {
       const doc = change.fullDocument;
-      resultQueue.add("generateResult", { attemptId: doc._id });
+      resultQueue.add("generateResult", {
+        attemptId: doc._id.toString(),
+      });
       console.log(`📥 New job queued: ${doc._id}`);
     });
 
@@ -62,5 +65,5 @@ async function startSurveyResponseWatcher() {
 }
 
 module.exports = {
-  startSurveyResponseWatcher
+  startSurveyResponseWatcher,
 };
