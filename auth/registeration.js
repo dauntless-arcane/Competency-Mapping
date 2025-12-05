@@ -13,11 +13,11 @@ app.use(helmet());
 app.use(express.json({ limit: '10kb' }));
 
 // Rate limit
-app.use(rateLimit({
-    windowMs: 60 * 1000,
-    max: 10,
-    message: { Status: false, Error: true, Msg: "Too many requests. Try again later." }
-}));
+// app.use(rateLimit({
+//     windowMs: 60 * 1000,
+//     max: 10,
+//     message: { Status: false, Error: true, Msg: "Too many requests. Try again later." }
+// }));
 
 // ---------- Username suggestion generator ----------
 function generateSuggestions(username) {
