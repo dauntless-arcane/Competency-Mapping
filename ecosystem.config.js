@@ -1,5 +1,6 @@
 const path = require("path");
 const ROOT = path.resolve(__dirname);
+dotenv.config({ path: './.env' });
 
 module.exports = {
   apps: [

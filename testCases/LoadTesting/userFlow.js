@@ -2,7 +2,7 @@ import http from "k6/http";
 import { sleep, check } from "k6";
 
 export let options = {
-  vus: 50,          // increase to 100 later
+  vus: 100,          // increase to 100 later
   duration: "5m",
 };
 
@@ -25,8 +25,8 @@ export default function () {
   const rand = randomString(8);
 
   const signupPayload = JSON.stringify({
-    username: `user_${rand}`,
-    email: `user_${rand}@test.com`,
+    username: `user155_${rand}`,
+    email: `user155_${rand}@test.com`,
     password: "Test@123",
     name: "Load User",
     class: "1BTCHE",
@@ -39,7 +39,7 @@ export default function () {
     headers: { "Content-Type": "application/json" }
   });
 
-  // console.log("SIGNUP:", signupRes.status, signupRes.body);
+  console.log("SIGNUP:", signupRes.status, signupRes.body);
 
   check(signupRes, {
     "signup_success_201": (r) => r.status === 201
@@ -48,7 +48,7 @@ export default function () {
   // If signup fails → stop flow
   if (signupRes.status !== 201) return;
 
-  const newUser = `user_${rand}`;
+  const newUser = `user155_${rand}`;
 
   // -------------------------------------------------
   // 1️⃣ LOGIN USING NEW ACCOUNT
@@ -188,5 +188,5 @@ export default function () {
     "fetch_result_200": (r) => r.status === 200
   });
 
-  sleep(1);
+  // sleep(1);
 }

@@ -13,7 +13,11 @@ if (!uri) {
 
 async function connectDB() {
     try {
-        await mongoose.connect(uri); // ✅ No deprecated options needed in v7+
+        await mongoose.connect(uri,{
+              maxPoolSize: 200,
+              socketTimeoutMS: 60000,
+
+        }); // ✅ No deprecated options needed in v7+
         console.log('✅ MongoDB connected successfully');
     } catch (error) {
         console.error('❌ MongoDB connection error:', error.message);
