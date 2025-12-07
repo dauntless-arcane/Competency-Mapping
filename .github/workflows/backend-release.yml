@@ -31,23 +31,15 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Merge backend into main (prefer backend)
-        run: |
-          echo "🔁 Syncing backend → main (preferring backend changes)"
-          git fetch origin main backend
-          git checkout main || git checkout -b main origin/main
-          git merge -X theirs origin/backend --no-edit || true
-
-          git add -A
-          git commit -m "🔁 Auto-sync backend → main (resolved merge conflicts)" || echo "✅ Nothing to commit"
-          git push origin main || echo "✅ Nothing to push"
-
       - name: Create new backend release tag
         id: tag
         run: |
           echo "🏷️ Generating new backend version tag"
           git fetch --tags
-          latest_tag=$(git describe --tags --abbrev=0 --match "backend-v*" 2>/dev/null || echo "backend-v0.0.0")
+          latest_tag=$(git tag --list "backend-v*" | sort -V | tail -n 1)
+          if [ -z "$latest_tag" ]; then
+          latest_tag="backend-v0.0.0"
+          fi
 
           version=${latest_tag#backend-v}
           major=$(echo $version | cut -d. -f1)
