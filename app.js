@@ -26,7 +26,7 @@ const httpRequestDuration = new promClient.Histogram({
     buckets: [0.005, 0.01, 0.05, 0.1, 0.3, 1, 2, 5]
 });
 
-// Function timing histogram (for internal steps)
+// Function timing histogram
 const functionDuration = new promClient.Histogram({
     name: 'psych_function_duration_seconds',
     help: 'Time taken by internal functions',
@@ -34,9 +34,7 @@ const functionDuration = new promClient.Histogram({
     buckets: [0.001, 0.005, 0.01, 0.02, 0.05, 0.1, 0.3, 1, 2]
 });
 
-// Export for routes
 module.exports.functionDuration = functionDuration;
-
 
 
 // -------------------- OPEN TELEMETRY TRACING --------------------
@@ -63,10 +61,8 @@ try {
 }
 
 
-
 // -------------------- ENV --------------------
 dotenv.config({ path: './.env' });
-
 
 
 // -------------------- CORS --------------------
@@ -79,26 +75,49 @@ app.use(function (req, res, next) {
     );
     res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
 
-    if (req.method === "OPTIONS") {
-        return res.status(200).end();
-    }
+    if (req.method === "OPTIONS") return res.status(200).end();
     next();
 });
 
 app.use(bodyParser.json());
 
 
+// -------------------- ROUTE NORMALIZER (THE FIX) --------------------
+function getRouteLabel(req) {
+    try {
+        // Use Express route pattern when available
+        if (req.route && req.route.path) return req.route.path;
+
+        // Use baseUrl for routers (/api/users, /auth)
+        if (req.baseUrl) return req.baseUrl;
+
+        // Fallback for dynamic garbage requests
+        return "/unknown";
+    } catch {
+        return "/unknown";
+    }
+}
+
 
 // -------------------- GLOBAL METRICS MIDDLEWARE --------------------
 app.use((req, res, next) => {
-    const timer = httpRequestDuration.startTimer({ method: req.method, route: req.path });
+    // Temporarily store start time
+    const startTime = Date.now();
 
     // OTEL span
-    const span = tracer ? tracer.startSpan(`HTTP ${req.method} ${req.path}`) : null;
+    const span = tracer ? tracer.startSpan(`HTTP ${req.method} ${req.originalUrl}`) : null;
 
     res.on('finish', () => {
-        timer();
-        httpRequestsTotal.inc({ method: req.method, route: req.path, status: res.statusCode });
+        const routeLabel = getRouteLabel(req);
+        const durationSeconds = (Date.now() - startTime) / 1000;
+
+        httpRequestsTotal.inc({
+            method: req.method,
+            route: routeLabel,
+            status: res.statusCode
+        });
+
+        httpRequestDuration.labels(req.method, routeLabel).observe(durationSeconds);
 
         if (span) {
             span.setAttribute("http.status", res.statusCode);
@@ -110,14 +129,12 @@ app.use((req, res, next) => {
 });
 
 
-
 // -------------------- ROUTES --------------------
-app.use("/auth", require('./auth/login'));          // LOGIN / REFRESH / RESET / FORGOT
+app.use("/auth", require('./auth/login'));
 app.use("/auth/sign-up", require('./auth/registeration'));
 
 app.use("/api/admin", require('./admin/routing'));
 app.use("/api/users", require('./users/routing'));
-
 
 
 // -------------------- METRICS ENDPOINT --------------------
@@ -129,7 +146,6 @@ app.get('/metrics', async (req, res) => {
         res.status(500).send(err.message);
     }
 });
-
 
 
 // -------------------- SERVER --------------------
