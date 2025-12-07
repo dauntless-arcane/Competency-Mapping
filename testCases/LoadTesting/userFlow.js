@@ -3,7 +3,7 @@ import { sleep, check } from "k6";
 
 export let options = {
   vus: 100,          // increase to 100 later
-  duration: "5m",
+  duration: "1s",
 };
 
 const BASE = "https://api-caps.pratyushes.dev";
@@ -39,7 +39,7 @@ export default function () {
     headers: { "Content-Type": "application/json" }
   });
 
-  console.log("SIGNUP:", signupRes.status, signupRes.body);
+  // console.log("SIGNUP:", signupRes.status, signupRes.body);
 
   check(signupRes, {
     "signup_success_201": (r) => r.status === 201

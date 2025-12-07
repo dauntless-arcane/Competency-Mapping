@@ -9,7 +9,7 @@ const cookieParser = require('cookie-parser');
 const rateLimit = require("express-rate-limit");
 const Joi = require('joi');
 const bcrypt = require("bcryptjs"); // legacy users only
-const { v4: uuidv4 } = require('uuid');
+const { uuid: uuidv4 } = require("uuidv4");
 const UAParser = require("ua-parser-js");
 
 const User = require('../models/Login');
