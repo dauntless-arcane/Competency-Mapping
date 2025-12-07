@@ -42,12 +42,12 @@ export default function () {
   };
 
   // 2) fetch tests
-  let res = http.post(`${BASE}/api/users/fetch-tests`, null, { headers: authHeaders });
+  let res = http.get(`${BASE}/api/users/fetch-tests`, null, { headers: authHeaders });
   check(res, { "fetch_tests_200": (r) => r.status === 200 });
 
   // 3) fetch details
   const testId = "E9B927B";
-  res = http.post(`${BASE}/api/users/fetch-tests/${testId}`, null, { headers: authHeaders });
+  res = http.get(`${BASE}/api/users/fetch-tests/${testId}`, null, { headers: authHeaders });
   check(res, { "test_detail_200": (r) => r.status === 200 });
 
   // 4) submit answers (use your standard payload)
@@ -67,7 +67,7 @@ export default function () {
   check(res, { "submit_answers_success": (r) => (r.status === 200 || r.status === 201) });
 
   // 5) fetch result
-  res = http.post(`${BASE}/api/users/result/${username}`, null, { headers: authHeaders });
+  res = http.get(`${BASE}/api/users/result/${username}`, null, { headers: authHeaders });
   check(res, { "fetch_result_200": (r) => r.status === 200 });
 
   sleep(1);
