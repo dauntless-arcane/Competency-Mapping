@@ -105,6 +105,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: 🔍 Debug — Print SSH Key
+        run: |
+         echo "----- START KEY -----"
+         printf "%s\n" "${{ secrets.SERVER_SSH_KEY }}"
+         echo "----- END KEY -----"
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v0.1.6
         with:
