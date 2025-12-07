@@ -57,15 +57,15 @@ app.use('/', (req, res, next) => {
 // Adjust TTL based on route load patterns.
 
 const t_entry_load = startTimer("users_root_mount_entry");
-app.use('/entry', cache(60), require('./user-survey')); 
+app.use('/entry', require('./user-survey')); 
 t_entry_load();
 
 const t_result_load = startTimer("users_root_mount_result");
-app.use('/result', cache(60), require('./result')); 
+app.use('/result',  require('./result')); 
 t_result_load();
 
 const t_fetch_tests_load = startTimer("users_root_mount_fetchTests");
-app.use('/fetch-tests', cache(300), require('./fetch-test')); 
+app.use('/fetch-tests', require('./fetch-test')); 
 t_fetch_tests_load();
 
 

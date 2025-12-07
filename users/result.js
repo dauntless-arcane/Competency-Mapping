@@ -4,59 +4,68 @@ const router = express.Router();
 const Result = require('../models/ResultSchema');
 const Test = require('../models/TestsSchema');
 
-// 🔥 Function Timer
 const startTimer = require('../utils/timer');
+const cache = require('../utils/cache');   // <-- caching added
 
 
-// ===========================================================
-// =============== FETCH RESULT BY USER + ATTEMPT ============
-// ===========================================================
-router.post('/:userId/:attemptId', async (req, res) => {
-  const t_total = startTimer("result_get_single_total");
 
+// ============================================================
+// Helper: Resolve values from GET or POST
+// ============================================================
+function resolveParams(req) {
+  return {
+    userId: req.params.userId || req.body.userId,
+    attemptId: req.params.attemptId || req.body.attemptId
+  };
+}
+
+
+
+// ============================================================
+// INTERNAL HANDLER: SINGLE RESULT
+// ============================================================
+async function handleGetSingleResult(req, res) {
+  const t_total = startTimer("result_single_total");
   try {
-    const t_extract = startTimer("result_get_single_extract_params");
-    const { userId, attemptId } = req.params;
+    const t_extract = startTimer("result_single_extract_params");
+    const { userId, attemptId } = resolveParams(req);
     t_extract();
 
-    // 1️⃣ Fetch result
-    const t_fetchResult = startTimer("result_get_single_db_fetch_result");
+    if (!userId || !attemptId) {
+      return res.status(400).json({ Status: false, Msg: "Missing userId / attemptId" });
+    }
+
+    const t_fetchResult = startTimer("result_single_fetch_result");
     const result = await Result.findOne({ userId, attemptId })
-      .select('surveyId overallSummary traitBreakdown generatedAt createdAt attemptId')
+      .select("surveyId overallSummary traitBreakdown generatedAt createdAt attemptId")
       .lean();
     t_fetchResult();
 
     if (!result) {
       t_total();
-      return res.status(404).json({
-        Status: false,
-        Error: true,
-        Msg: 'Result not found for this user/attempt.'
-      });
+      return res.status(404).json({ Status: false, Msg: "Result not found" });
     }
 
-    // 2️⃣ Fetch test info
-    const t_fetchTest = startTimer("result_get_single_db_fetch_test");
+    const t_fetchTest = startTimer("result_single_fetch_test");
     const test = await Test.findOne({ surveyId: result.surveyId })
-      .select('name level description')
+      .select("name level description")
       .lean();
     t_fetchTest();
 
-    // 3️⃣ Construct output
-    const t_format = startTimer("result_get_single_format_response");
+    const t_format = startTimer("result_single_format");
     const responseObj = {
       Status: true,
       Error: false,
-      Msg: 'Result fetched successfully',
+      Msg: "Result fetched successfully",
       Result: {
-        name: test?.name || 'Unknown Test',
-        level: test?.level || 'N/A',
+        name: test?.name || "Unknown Test",
+        level: test?.level || "N/A",
         surveyId: result.surveyId,
-        attemptId: result.attemptId?.toString(),
+        attemptId: String(result.attemptId),
         overallSummary: result.overallSummary,
         traitBreakdown: result.traitBreakdown,
         dateAttempted: result.generatedAt || result.createdAt,
-        TestStatus: 'Completed'
+        TestStatus: "Completed",
       }
     };
     t_format();
@@ -65,97 +74,82 @@ router.post('/:userId/:attemptId', async (req, res) => {
     return res.status(200).json(responseObj);
 
   } catch (err) {
-    console.error('❌ Error fetching result:', err);
-
     t_total();
-
-    return res.status(500).json({
-      Status: false,
-      Error: true,
-      Msg: 'Internal server error',
-      ErrMsg: err.message
-    });
+    return res.status(500).json({ Status: false, Msg: err.message });
   }
-});
+}
 
 
-// ===========================================================
-// =============== FETCH ALL RESULTS FOR USER ================
-// ===========================================================
-router.post('/:userId', async (req, res) => {
-  const t_total = startTimer("result_get_all_total");
 
+// ============================================================
+// INTERNAL HANDLER: ALL RESULTS FOR USER
+// ============================================================
+async function handleGetAllResults(req, res) {
+  const t_total = startTimer("result_all_total");
   try {
-    const t_extract = startTimer("result_get_all_extract_params");
-    const { userId } = req.params;
-    t_extract();
-
-    // 1️⃣ Fetch all results
-    const t_fetchResults = startTimer("result_get_all_db_fetch_results");
-    const results = await Result.find({ userId })
-      .sort({ generatedAt: -1 })
-      .lean();
-    t_fetchResults();
-
-    if (!results || results.length === 0) {
-      t_total();
-      return res.status(404).json({
-        Status: false,
-        Error: true,
-        Msg: 'No results found for this user.'
-      });
+    const userId = req.params.userId || req.body.userId;
+    if (!userId) {
+      return res.status(400).json({ Status: false, Msg: "Missing userId" });
     }
 
-    // 2️⃣ Extract surveyIds
-    const t_extractIds = startTimer("result_get_all_extract_surveyIds");
-    const surveyIds = results.map(r => r.surveyId);
-    t_extractIds();
+    const t_fetchResults = startTimer("result_all_fetch_results");
+    const results = await Result.find({ userId }).sort({ generatedAt: -1 }).lean();
+    t_fetchResults();
 
-    // 3️⃣ Fetch test info for all surveyIds
-    const t_fetchTests = startTimer("result_get_all_db_fetch_tests");
+    if (!results.length) {
+      t_total();
+      return res.status(404).json({ Status: false, Msg: "No results found" });
+    }
+
+    const surveyIds = results.map(r => r.surveyId);
+
+    const t_fetchTests = startTimer("result_all_fetch_tests");
     const tests = await Test.find({ surveyId: { $in: surveyIds } })
-      .select('surveyId name level')
+      .select("surveyId name level")
       .lean();
     t_fetchTests();
 
-    // 4️⃣ Map tests by surveyId
-    const t_map = startTimer("result_get_all_map_tests");
+    const t_map = startTimer("result_all_map_tests");
     const testMap = {};
-    tests.forEach(t => { testMap[t.surveyId] = t; });
+    tests.forEach(t => (testMap[t.surveyId] = t));
     t_map();
 
-    // 5️⃣ Format output list
-    const t_format = startTimer("result_get_all_format_results");
-    const formattedResults = results.map(r => ({
-      name: testMap[r.surveyId]?.name || 'Unknown',
-      level: testMap[r.surveyId]?.level || 'Unknown',
-      resultId: r.attemptId?.toString() || r.attemptId || 'N/A',
-      dateAttempted: r.generatedAt || r.createdAt || 'N/A'
+    const t_format = startTimer("result_all_format_response");
+    const finalData = results.map(r => ({
+      name: testMap[r.surveyId]?.name || "Unknown",
+      level: testMap[r.surveyId]?.level || "Unknown",
+      resultId: String(r.attemptId),
+      dateAttempted: r.generatedAt || r.createdAt
     }));
     t_format();
 
     t_total();
-
     return res.status(200).json({
       Status: true,
       Error: false,
-      Count: formattedResults.length,
-      Data: formattedResults
+      Count: finalData.length,
+      Data: finalData
     });
 
   } catch (err) {
-    console.error('❌ Error fetching results:', err);
-
     t_total();
-
-    return res.status(500).json({
-      Status: false,
-      Error: true,
-      Msg: 'Failed to fetch results',
-      ErrMsg: err.message
-    });
+    return res.status(500).json({ Status: false, Msg: err.message });
   }
-});
+}
+
+
+
+// ============================================================
+// ROUTES (with caching + backward compatibility)
+// ============================================================
+
+// SINGLE RESULT — cache 60s
+router.get('/:userId/:attemptId', cache(60), handleGetSingleResult);
+router.post('/:userId/:attemptId', cache(60), handleGetSingleResult); // old clients
+
+// ALL RESULTS — cache 60s
+router.get('/:userId', cache(60), handleGetAllResults);
+router.post('/:userId', cache(60), handleGetAllResults); // old clients
 
 
 module.exports = router;

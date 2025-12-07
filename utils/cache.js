@@ -2,34 +2,34 @@
 const { redisClient } = require('../database/redis');
 const startTimer = require('./timer');
 
-function cacheMiddleware(ttlSeconds = 60) {
+function cache(keyBuilder, ttlSeconds = 60) {
   return async (req, res, next) => {
+
+    // ❌ Do NOT cache POST, PUT, DELETE
+    if (req.method !== "GET") return next();
+
+    const cacheKey = keyBuilder(req);
     const t_total = startTimer("cache_total");
 
     try {
-      const key = "cache:" + req.originalUrl;
-
       const t_read = startTimer("cache_read");
-      const cached = await redisClient.get(key);
+      const cached = await redisClient.get(cacheKey);
       t_read();
 
       if (cached) {
-        const t_hit = startTimer("cache_hit");
-        t_hit();
+        startTimer("cache_hit")();
         t_total();
-        return res.status(200).json(JSON.parse(cached));
+        return res.json(JSON.parse(cached));
       }
 
-      // Cache MISS
-      const t_miss = startTimer("cache_miss");
-      t_miss();
+      // MISS
+      startTimer("cache_miss")();
 
-      // Monkey patch res.json
       const oldJson = res.json.bind(res);
       res.json = async (body) => {
         try {
           const t_write = startTimer("cache_write");
-          await redisClient.setex(key, ttlSeconds, JSON.stringify(body));
+          await redisClient.setex(cacheKey, ttlSeconds, JSON.stringify(body));
           t_write();
         } catch (e) {
           console.error("❌ Cache Write Error:", e.message);
@@ -42,11 +42,11 @@ function cacheMiddleware(ttlSeconds = 60) {
       next();
 
     } catch (err) {
-      console.log("⚠️ Cache Error (skipped):", err.message);
+      console.error("⚠️ Cache error:", err.message);
       t_total();
       next();
     }
   };
 }
 
-module.exports = cacheMiddleware;
+module.exports = cache;

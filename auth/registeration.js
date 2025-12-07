@@ -1,43 +1,42 @@
+// routes/signup.js
 require('dotenv').config();
 const express = require('express');
-const bcrypt = require('bcryptjs');
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
 
 const User = require('../models/Login');
 
-// 🔥 Function Timer
+// 🔥 Prometheus Function Timer
 const startTimer = require('../utils/timer');
+
+// 🔥 Worker-thread password hashing (argon2id)
+const { hashPassword } = require("../utils/password");
 
 const app = express();
 
-// Security middlewares
+// Security
 app.use(helmet());
 app.use(express.json({ limit: '10kb' }));
 
-// Rate limit (optional)
-// app.use(rateLimit({
-//     windowMs: 60 * 1000,
-//     max: 10,
-//     message: { Status: false, Error: true, Msg: "Too many requests. Try again later." }
-// }));
 
-// ---------- Username suggestion generator ----------
+// ---------------------------------------------------
+// Helper: Generate username suggestions
+// ---------------------------------------------------
 function generateSuggestions(username) {
     const t = startTimer("signup_generateSuggestions");
-
     const rand = () => Math.floor(Math.random() * 10000);
     const out = [
         username + rand(),
         username + "_" + rand(),
         rand() + "_" + username
     ];
-
     t();
     return out;
 }
 
-// ---------- SIGNUP ----------
+
+// ---------------------------------------------------
+// SIGNUP
+// ---------------------------------------------------
 app.post('/', async (req, res) => {
     const t_total = startTimer("signup_total");
 
@@ -55,8 +54,12 @@ app.post('/', async (req, res) => {
         } = req.body;
         t_extract();
 
-        // Validate required fields
+
+        // ---------------------------------------------------
+        // 1️⃣ Validate Required Fields
+        // ---------------------------------------------------
         const t_validate = startTimer("signup_validateFields");
+
         if (!username || !email || !password || !name || !className || !section || !rollNo || !dob) {
             t_validate();
             t_total();
@@ -76,9 +79,13 @@ app.post('/', async (req, res) => {
                 Msg: "Password must be at least 6 characters"
             });
         }
+
         t_validate();
 
-        // Check if username exists
+
+        // ---------------------------------------------------
+        // 2️⃣ Check Username Exists
+        // ---------------------------------------------------
         const t_findUser = startTimer("signup_findUserByUsername");
         const existingUser = await User.findOne({ username });
         t_findUser();
@@ -93,7 +100,10 @@ app.post('/', async (req, res) => {
             });
         }
 
-        // Check if email exists
+
+        // ---------------------------------------------------
+        // 3️⃣ Check Email Exists
+        // ---------------------------------------------------
         const t_findEmail = startTimer("signup_findUserByEmail");
         const existingEmail = await User.findOne({ email });
         t_findEmail();
@@ -107,33 +117,47 @@ app.post('/', async (req, res) => {
             });
         }
 
-        // Hash password
-        const t_bcrypt = startTimer("signup_hashPassword");
-        const saltRounds = parseInt(process.env.SALT_ROUNDS || '12', 10);
-        const passwordHash = await bcrypt.hash(password, saltRounds);
-        t_bcrypt();
 
-        // Create user
+        // ---------------------------------------------------
+        // 4️⃣ Hash Password (argon2id via worker thread)
+        // ---------------------------------------------------
+        const t_hash = startTimer("signup_hashPassword");
+
+        const passwordHash = await hashPassword(password);  
+        // ⚡ NO blocking main thread  
+        // ⚡ Works on ARM + x86  
+        // ⚡ Faster than bcrypt  
+
+        t_hash();
+
+
+        // ---------------------------------------------------
+        // 5️⃣ Create User
+        // ---------------------------------------------------
         const t_create = startTimer("signup_createUser");
         const newUser = new User({
             username,
             email,
-            passwordHash,
+            passwordHash,   // stored argon2 hash
             name,
             class: className,
             section,
             rollNo,
             dob,
-            roles: ["student"] // default role
+            roles: ["student"]
         });
         t_create();
 
+
+        // ---------------------------------------------------
+        // 6️⃣ Save to DB
+        // ---------------------------------------------------
         const t_save = startTimer("signup_saveUser");
         await newUser.save();
         t_save();
 
-        t_total();
 
+        t_total();
         return res.status(201).json({
             Status: true,
             Error: false,
@@ -142,7 +166,6 @@ app.post('/', async (req, res) => {
 
     } catch (err) {
         console.error("Signup error:", err);
-
         t_total();
 
         return res.status(500).json({
@@ -152,5 +175,6 @@ app.post('/', async (req, res) => {
         });
     }
 });
+
 
 module.exports = app;

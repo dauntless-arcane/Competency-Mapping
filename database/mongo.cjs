@@ -13,11 +13,17 @@ if (!uri) {
 
 async function connectDB() {
     try {
-        await mongoose.connect(uri,{
-              maxPoolSize: 200,
-              socketTimeoutMS: 60000,
+        await mongoose.connect(uri, {
+            maxPoolSize: 200,       // allow high concurrency
+            minPoolSize: 20,        // keep warm connections ready
+            socketTimeoutMS: 60000, // allow long ops but not too long
+            connectTimeoutMS: 5000, // fail fast
+            serverSelectionTimeoutMS: 3000,
+            retryWrites: true,
+            heartbeatFrequencyMS: 5000,
+            autoIndex: false,        // IMPORTANT for performance in prod
+        });
 
-        }); // ✅ No deprecated options needed in v7+
         console.log('✅ MongoDB connected successfully');
     } catch (error) {
         console.error('❌ MongoDB connection error:', error.message);
