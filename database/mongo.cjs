@@ -14,7 +14,7 @@ if (!uri) {
 async function connectDB() {
     try {
         await mongoose.connect(uri, {
-            maxPoolSize: 200,       // allow high concurrency
+            maxPoolSize: 500,       // allow high concurrency
             minPoolSize: 20,        // keep warm connections ready
             socketTimeoutMS: 60000, // allow long ops but not too long
             connectTimeoutMS: 5000, // fail fast

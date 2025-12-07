@@ -3,7 +3,7 @@ import { sleep, check } from "k6";
 
 export let options = {
   vus: 100,          // increase to 100 later
-  duration: "1s",
+  duration: "5m",
 };
 
 const BASE = "https://api-caps.pratyushes.dev";

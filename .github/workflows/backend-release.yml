@@ -36,9 +36,10 @@ jobs:
         run: |
           echo "🏷️ Generating new backend version tag"
           git fetch --tags
+          
           latest_tag=$(git tag --list "backend-v*" | sort -V | tail -n 1)
           if [ -z "$latest_tag" ]; then
-          latest_tag="backend-v0.0.0"
+            latest_tag="backend-v0.0.0"
           fi
 
           version=${latest_tag#backend-v}
@@ -46,11 +47,13 @@ jobs:
           minor=$(echo $version | cut -d. -f2)
           patch=$(echo $version | cut -d. -f3)
           new_patch=$((patch + 1))
+
           new_tag="backend-v${major}.${minor}.${new_patch}"
 
           echo "➡️ New tag: $new_tag"
           git tag -a "$new_tag" -m "🔖 Auto backend release: $new_tag"
           git push origin "$new_tag"
+
           echo "tag=$new_tag" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
@@ -64,13 +67,14 @@ jobs:
             Automated backend release created from sync to main.
             Changes merged from **backend** → **main**.
 
+
   # -----------------------------------------------------------
-  # 2. BUILD & PUSH DOCKER IMAGE (same as before)
+  # 2. BUILD & PUSH DOCKER IMAGE
   # -----------------------------------------------------------
   docker:
     needs: sync
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout main branch
         uses: actions/checkout@v4
@@ -91,6 +95,7 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USER }}/psych-api:latest
             ${{ secrets.DOCKERHUB_USER }}/psych-api:${{ needs.sync.outputs.tag }}
+
 
   # -----------------------------------------------------------
   # 3. DEPLOY TO SERVER (SSH + DOCKER)
