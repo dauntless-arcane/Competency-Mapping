@@ -12,6 +12,9 @@ const Joi = require('joi');
 const { v4: uuidv4 } = require('uuid');
 const UAParser = require('ua-parser-js');
 
+// 🔥 Function Timer
+const startTimer = require('../utils/timer');
+
 const User = require('../models/Login');
 const LoginLog = require('../models/LoginLog');
 const RefreshToken = require('../models/RefreshToken');
@@ -27,86 +30,97 @@ router.use(express.json({ limit: '10kb' }));
 router.use(cookieParser());
 router.use(cors({ origin: process.env.FRONTEND_ORIGIN || "*", credentials: true }));
 
-// router.use(rateLimit({
-//   windowMs: 15 * 60 * 1000,
-//   max: 200,
-//   message: { Status: false, Error: true, Msg: "Too many requests" }
-// }));
-
 // ------------------ HELPERS ------------------
 function getIp(req) {
+  const t = startTimer("helper_getIp");
   const fwd = req.headers["x-forwarded-for"];
+  t();
   if (fwd) return String(fwd).split(",")[0].trim();
   return req.socket.remoteAddress;
 }
 
-async function saveLog({ username, ip, success, message, userAgent }) {
-  try {
-    await LoginLog.create({ username, ip, status: success, message, userAgent });
-  } catch { }
+async function saveLog(data) {
+  const t = startTimer("helper_savelog");
+  try { await LoginLog.create(data); } catch { }
+  t();
 }
 
 function signAccessToken(user) {
-  return jwt.sign(
+  const t = startTimer("helper_signAccessToken");
+  const token = jwt.sign(
     { id: user._id, username: user.username, roles: user.roles },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_ACCESS_EXPIRES || "15m" }
   );
+  t();
+  return token;
 }
 
 function signRefreshToken(tokenId, user) {
-  return jwt.sign(
+  const t = startTimer("helper_signRefreshToken");
+  const token = jwt.sign(
     { id: user._id, username: user.username, jti: tokenId },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_REFRESH_EXPIRES || "30d" }
   );
+  t();
+  return token;
 }
 
 function parseDuration(d) {
-  if (!d) return 0;
-  if (typeof d === "number") return d;
-  if (d.endsWith("ms")) return parseInt(d);
-  if (d.endsWith("s")) return parseInt(d) * 1000;
-  if (d.endsWith("m")) return parseInt(d) * 60 * 1000;
-  if (d.endsWith("h")) return parseInt(d) * 60 * 60 * 1000;
-  if (d.endsWith("d")) return parseInt(d) * 24 * 60 * 60 * 1000;
-  return parseInt(d);
+  const t = startTimer("helper_parseDuration");
+  let v;
+
+  if (!d) v = 0;
+  else if (typeof d === "number") v = d;
+  else if (d.endsWith("ms")) v = parseInt(d);
+  else if (d.endsWith("s")) v = parseInt(d) * 1000;
+  else if (d.endsWith("m")) v = parseInt(d) * 60000;
+  else if (d.endsWith("h")) v = parseInt(d) * 3600000;
+  else if (d.endsWith("d")) v = parseInt(d) * 86400000;
+  else v = parseInt(d);
+
+  t();
+  return v;
 }
 const parseDurationMillis = parseDuration;
 
-// ----------------- Device Parsing -----------------
+// Device Parsing
 function parseDeviceFromReq(req) {
+  const t = startTimer("helper_parseDevice");
   const ua = req.get("User-Agent") || "";
   const parser = new UAParser(ua);
   const r = parser.getResult();
 
-  return {
+  const out = {
     deviceName: r.device.vendor || "Unknown",
     deviceType: r.device.type || "desktop",
     os: r.os.name || "Unknown",
     browser: r.browser.name || "Unknown",
     userAgent: ua
   };
+
+  t();
+  return out;
 }
 
-// ----------------- Suspicious-Detection Logic -----------------
+// Suspicious Detection Logic
 function isSuspicious(dbToken, ip, ua) {
+  const t = startTimer("helper_isSuspicious");
   const mode = (process.env.SUSPICIOUS_MODE || "strict").toLowerCase();
-
   const sameIp = dbToken.ip === ip;
   const sameUA = dbToken.userAgent === ua;
 
-  if (mode === "off") return false;
+  let out;
+  if (mode === "off") out = false;
+  else if (mode === "loose") out = !sameIp && !sameUA;
+  else out = !sameIp || !sameUA;
 
-  if (mode === "loose") {
-    return !sameIp && !sameUA; // both differ
-  }
-
-  // strict = block if ANY mismatch
-  return !sameIp || !sameUA;
+  t();
+  return out;
 }
 
-// ---------------- Validation ----------------
+// Validation Schemas
 const loginSchema = Joi.object({
   username: Joi.string().min(3).max(100).required(),
   password: Joi.string().min(6).max(1024).required()
@@ -123,37 +137,43 @@ const resetSchema = Joi.object({
   newPassword: Joi.string().min(6).required()
 });
 
-// ---------------- Account Lock Settings ----------------
-const MAX_FAILED = 5;
-const LOCK_TIME_MS = 15 * 60 * 1000;
-
+// Account Lock
 async function recordFailedLogin(user) {
+  const t = startTimer("login_recordFailedLogin");
   try {
     user.failedLoginAttempts++;
-    if (user.failedLoginAttempts >= MAX_FAILED) {
-      user.lockUntil = Date.now() + LOCK_TIME_MS;
+    if (user.failedLoginAttempts >= 5) {
+      user.lockUntil = Date.now() + 15 * 60 * 1000;
     }
     await user.save();
   } catch { }
+  t();
 }
 
 async function resetFailedLogin(user) {
+  const t = startTimer("login_resetFailedLogin");
   user.failedLoginAttempts = 0;
   user.lockUntil = undefined;
   await user.save();
+  t();
 }
 
-// ---------------- Auth Middleware ----------------
+// Middleware Auth
 function authenticate(req, res, next) {
+  const t = startTimer("auth_middleware");
   const auth = req.headers.authorization || "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
-  if (!token) return res.status(401).json({ Status: false, Msg: "Unauthorized" });
+  if (!token) {
+    t();
+    return res.status(401).json({ Status: false, Msg: "Unauthorized" });
+  }
 
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = payload;
+    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    t();
     return next();
   } catch {
+    t();
     return res.status(401).json({ Status: false, Msg: "Invalid token" });
   }
 }
@@ -163,40 +183,64 @@ function authenticate(req, res, next) {
 // =========================================================
 
 router.post("/login", async (req, res) => {
+  const t_total = startTimer("login_total");
+
+  const t_ip = startTimer("login_getIp");
   const ip = getIp(req);
+  t_ip();
+
   const ua = req.get("User-Agent") || "";
 
   try {
+    const t_validate = startTimer("login_validate");
     const { error, value } = loginSchema.validate(req.body);
-    if (error)
+    t_validate();
+
+    if (error) {
+      t_total();
       return res.status(400).json({ Status: false, Msg: "Invalid input" });
+    }
 
     const { username, password } = value;
 
+    const t_findUser = startTimer("login_findUser");
     const user = await User.findOne({ username });
-    if (!user)
+    t_findUser();
+
+    if (!user) {
+      t_total();
       return res.status(401).json({ Status: false, Msg: "Invalid credentials" });
+    }
 
     if (user.lockUntil && user.lockUntil > Date.now()) {
+      t_total();
       return res.status(423).json({ Status: false, Msg: "Account locked. Try later." });
     }
 
+    const t_bcrypt = startTimer("login_comparePassword");
     const passwordOk = await bcrypt.compare(password, user.passwordHash);
+    t_bcrypt();
+
     if (!passwordOk) {
       await recordFailedLogin(user);
+      t_total();
       return res.status(401).json({ Status: false, Msg: "Invalid credentials" });
     }
 
     await resetFailedLogin(user);
 
-    // Device info + session creation
+    const t_parseDev = startTimer("login_parseDevice");
+    const d = parseDeviceFromReq(req);
+    t_parseDev();
+
+    const t_tokenGen = startTimer("login_generateTokens");
     const tokenId = uuidv4();
     const deviceId = uuidv4();
     const accessToken = signAccessToken(user);
     const refreshTokenJwt = signRefreshToken(tokenId, user);
+    t_tokenGen();
 
-    const d = parseDeviceFromReq(req);
-
+    const t_insert = startTimer("login_insertRefreshToken");
     await RefreshToken.create({
       tokenId,
       userId: user._id,
@@ -210,14 +254,18 @@ router.post("/login", async (req, res) => {
       userAgent: d.userAgent,
       expiresAt: new Date(Date.now() + parseDuration(process.env.JWT_REFRESH_EXPIRES || "30d"))
     });
+    t_insert();
 
-    // set cookie
+    const t_cookie = startTimer("login_setCookie");
     res.cookie("refreshToken", refreshTokenJwt, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: parseDurationMillis(process.env.JWT_REFRESH_EXPIRES || "30d")
     });
+    t_cookie();
+
+    t_total();
 
     return res.json({
       Status: true,
@@ -236,6 +284,7 @@ router.post("/login", async (req, res) => {
     });
 
   } catch (err) {
+    t_total();
     return res.status(500).json({ Status: false, Msg: "Server error" });
   }
 });
@@ -245,49 +294,76 @@ router.post("/login", async (req, res) => {
 // =========================================================
 
 router.post("/refresh", async (req, res) => {
+  const t_total = startTimer("refresh_total");
+
   const ip = getIp(req);
   const ua = req.get("User-Agent") || "";
 
   try {
+    const t_tokenExtract = startTimer("refresh_extractToken");
     const token = req.cookies?.refreshToken || req.body?.refreshToken;
-    if (!token) return res.status(401).json({ Status: false, Msg: "No refresh token" });
+    t_tokenExtract();
+
+    if (!token) {
+      t_total();
+      return res.status(401).json({ Status: false, Msg: "No refresh token" });
+    }
 
     let payload;
+    const t_verify = startTimer("refresh_verifyToken");
     try { payload = jwt.verify(token, process.env.JWT_SECRET); }
-    catch { return res.status(401).json({ Status: false, Msg: "Invalid refresh token" }); }
+    catch {
+      t_verify();
+      t_total();
+      return res.status(401).json({ Status: false, Msg: "Invalid refresh token" });
+    }
+    t_verify();
 
+    const t_findDb = startTimer("refresh_findDBToken");
     const dbToken = await RefreshToken.findOne({ tokenId: payload.jti });
+    t_findDb();
 
     if (!dbToken || dbToken.revoked) {
-      if (dbToken?.userId) await RefreshToken.updateMany({ userId: dbToken.userId }, { revoked: true });
+      t_total();
       return res.status(401).json({ Status: false, Msg: "Refresh token invalid" });
     }
 
-    // ===================== Suspicious detection =====================
-    if (isSuspicious(dbToken, ip, ua)) {
+    const t_suspicious = startTimer("refresh_suspiciousCheck");
+    const suspicious = isSuspicious(dbToken, ip, ua);
+    t_suspicious();
+
+    if (suspicious) {
       await RefreshToken.updateMany({ userId: dbToken.userId }, { revoked: true });
       res.clearCookie("refreshToken");
+      t_total();
       return res.status(401).json({
         Status: false,
         Msg: `Suspicious activity detected (${process.env.SUSPICIOUS_MODE}). Please login again.`
       });
     }
 
-    // rotate token
-    const newTokenId = uuidv4();
-    const newRefreshJwt = signRefreshToken(newTokenId, payload);
+    const t_loadUser = startTimer("refresh_loadUser");
     const user = await User.findById(payload.id).lean();
+    t_loadUser();
 
     if (!user) {
+      t_total();
       return res.status(401).json({ Status: false, Msg: "User not found" });
     }
 
+    const t_rotate = startTimer("refresh_rotateToken");
+    const newTokenId = uuidv4();
+    const newRefreshJwt = signRefreshToken(newTokenId, payload);
     const newAccessToken = signAccessToken(user);
+    t_rotate();
 
+    const t_revoke = startTimer("refresh_revokeOldToken");
     dbToken.revoked = true;
     dbToken.replacedByTokenId = newTokenId;
     await dbToken.save();
+    t_revoke();
 
+    const t_insert = startTimer("refresh_insertNewToken");
     await RefreshToken.create({
       tokenId: newTokenId,
       userId: dbToken.userId,
@@ -301,13 +377,18 @@ router.post("/refresh", async (req, res) => {
       userAgent: ua,
       expiresAt: new Date(Date.now() + parseDuration(process.env.JWT_REFRESH_EXPIRES || "30d"))
     });
+    t_insert();
 
+    const t_set = startTimer("refresh_setCookie");
     res.cookie("refreshToken", newRefreshJwt, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: parseDurationMillis(process.env.JWT_REFRESH_EXPIRES || "30d")
     });
+    t_set();
+
+    t_total();
 
     return res.json({
       Status: true,
@@ -317,65 +398,7 @@ router.post("/refresh", async (req, res) => {
     });
 
   } catch {
-    return res.status(500).json({ Status: false, Msg: "Server error" });
-  }
-});
-
-// =========================================================
-// ================= ACTIVE SESSIONS ========================
-// =========================================================
-
-router.get("/sessions", authenticate, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const sessions = await RefreshToken.find({ userId, revoked: false })
-      .select("-_id deviceId deviceName deviceType os browser ip createdAt expiresAt tokenId");
-
-    return res.json({ Status: true, Sessions: sessions });
-  } catch {
-    return res.status(500).json({ Status: false, Msg: "Server error" });
-  }
-});
-
-// =========================================================
-// =================== LOGOUT DEVICE ========================
-// =========================================================
-
-router.post("/logout-device", authenticate, async (req, res) => {
-  try {
-    const { deviceId } = req.body;
-    if (!deviceId) return res.status(400).json({ Status: false, Msg: "deviceId required" });
-
-    const result = await RefreshToken.updateMany(
-      { userId: req.user.id, deviceId, revoked: false },
-      { revoked: true }
-    );
-
-    return res.json({ Status: true, Msg: "Device logged out", revokedCount: result.modifiedCount });
-  } catch {
-    return res.status(500).json({ Status: false, Msg: "Server error" });
-  }
-});
-
-// =========================================================
-// =================== LOGOUT ALL ===========================
-// =========================================================
-
-router.post("/logout-all", authenticate, async (req, res) => {
-  try {
-    const result = await RefreshToken.updateMany(
-      { userId: req.user.id, revoked: false },
-      { revoked: true }
-    );
-
-    res.clearCookie("refreshToken");
-
-    return res.json({
-      Status: true,
-      Msg: "Logged out from all devices",
-      revokedCount: result.modifiedCount
-    });
-  } catch {
+    t_total();
     return res.status(500).json({ Status: false, Msg: "Server error" });
   }
 });
@@ -385,27 +408,47 @@ router.post("/logout-all", authenticate, async (req, res) => {
 // =========================================================
 
 router.post("/forgot", async (req, res) => {
-  const ip = getIp(req);
-  const ua = req.get("User-Agent") || "";
+  const t_total = startTimer("forgot_total");
 
   try {
+    const t_validate = startTimer("forgot_validateInput");
     const { error, value } = forgotSchema.validate(req.body);
-    if (error) return res.status(400).json({ Status: false, Msg: "Invalid input" });
+    t_validate();
+
+    if (error) {
+      t_total();
+      return res.status(400).json({ Status: false, Msg: "Invalid input" });
+    }
 
     const { username, dob } = value;
-    const user = await User.findOne({ username });
-    if (!user) return res.status(404).json({ Status: false, Msg: "User not found" });
 
+    const t_findUser = startTimer("forgot_findUser");
+    const user = await User.findOne({ username });
+    t_findUser();
+
+    if (!user) {
+      t_total();
+      return res.status(404).json({ Status: false, Msg: "User not found" });
+    }
+
+    const t_compareDob = startTimer("forgot_compareDOB");
     const inputDob = new Date(dob).toISOString().slice(0, 10);
     const storedDob = new Date(user.dob).toISOString().slice(0, 10);
+    t_compareDob();
 
-    if (inputDob !== storedDob)
+    if (inputDob !== storedDob) {
+      t_total();
       return res.status(403).json({ Status: false, Msg: "DOB mismatch" });
+    }
 
+    const t_otp = startTimer("forgot_generateOTP");
     const otp = ("000000" + Math.floor(Math.random() * 1000000)).slice(-6);
     user.resetOtp = otp;
     user.resetOtpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
     await user.save();
+    t_otp();
+
+    t_total();
 
     return res.json({
       Status: true,
@@ -415,6 +458,7 @@ router.post("/forgot", async (req, res) => {
     });
 
   } catch {
+    t_total();
     return res.status(500).json({ Status: false, Msg: "Server error" });
   }
 });
@@ -424,29 +468,60 @@ router.post("/forgot", async (req, res) => {
 // =========================================================
 
 router.post("/reset", async (req, res) => {
+  const t_total = startTimer("reset_total");
+
   try {
+    const t_validate = startTimer("reset_validateInput");
     const { error, value } = resetSchema.validate(req.body);
-    if (error) return res.status(400).json({ Status: false, Msg: "Invalid input" });
+    t_validate();
+
+    if (error) {
+      t_total();
+      return res.status(400).json({ Status: false, Msg: "Invalid input" });
+    }
 
     const { username, otp, newPassword } = value;
+
+    const t_findUser = startTimer("reset_findUser");
     const user = await User.findOne({ username });
-    if (!user) return res.status(404).json({ Status: false, Msg: "User not found" });
+    t_findUser();
 
-    if (!user.resetOtp || new Date() > new Date(user.resetOtpExpiresAt))
+    if (!user) {
+      t_total();
+      return res.status(404).json({ Status: false, Msg: "User not found" });
+    }
+
+    const t_otpCheck = startTimer("reset_checkOtp");
+    const otpExpired = !user.resetOtp || new Date() > new Date(user.resetOtpExpiresAt);
+    t_otpCheck();
+
+    if (otpExpired) {
+      t_total();
       return res.status(400).json({ Status: false, Msg: "OTP expired" });
+    }
 
-    if (otp !== user.resetOtp)
+    if (otp !== user.resetOtp) {
+      t_total();
       return res.status(403).json({ Status: false, Msg: "Invalid OTP" });
+    }
 
+    const t_hash = startTimer("reset_hashPassword");
     const hash = await bcrypt.hash(newPassword, 12);
+    t_hash();
+
+    const t_save = startTimer("reset_updatePassword");
     user.passwordHash = hash;
     user.resetOtp = null;
     user.resetOtpExpiresAt = null;
     await user.save();
+    t_save();
+
+    t_total();
 
     return res.json({ Status: true, Msg: "Password reset successful" });
 
   } catch {
+    t_total();
     return res.status(500).json({ Status: false, Msg: "Server error" });
   }
 });
