@@ -26,7 +26,7 @@ const httpRequestDuration = new promClient.Histogram({
     buckets: [0.005, 0.01, 0.05, 0.1, 0.3, 1, 2, 5]
 });
 
-// Function timing histogram
+// Function timing histogram (for internal functions)
 const functionDuration = new promClient.Histogram({
     name: 'psych_function_duration_seconds',
     help: 'Time taken by internal functions',
@@ -35,6 +35,7 @@ const functionDuration = new promClient.Histogram({
 });
 
 module.exports.functionDuration = functionDuration;
+
 
 
 // -------------------- OPEN TELEMETRY TRACING --------------------
@@ -61,8 +62,10 @@ try {
 }
 
 
+
 // -------------------- ENV --------------------
 dotenv.config({ path: './.env' });
+
 
 
 // -------------------- CORS --------------------
@@ -75,49 +78,56 @@ app.use(function (req, res, next) {
     );
     res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
 
-    if (req.method === "OPTIONS") return res.status(200).end();
+    if (req.method === "OPTIONS") {
+        return res.status(200).end();
+    }
     next();
 });
 
 app.use(bodyParser.json());
 
 
-// -------------------- ROUTE NORMALIZER (THE FIX) --------------------
+
+// -------------------- ROUTES --------------------
+app.use("/auth", require('./auth/login'));
+app.use("/auth/sign-up", require('./auth/registeration'));
+
+app.use("/api/admin", require('./admin/routing'));
+app.use("/api/users", require('./users/routing'));
+
+
+
+// -------------------- ROUTE LABEL HELPER --------------------
 function getRouteLabel(req) {
-    try {
-        // Use Express route pattern when available
-        if (req.route && req.route.path) return req.route.path;
-
-        // Use baseUrl for routers (/api/users, /auth)
-        if (req.baseUrl) return req.baseUrl;
-
-        // Fallback for dynamic garbage requests
-        return "/unknown";
-    } catch {
-        return "/unknown";
+    if (req.route && req.route.path) {
+        if (req.baseUrl) return req.baseUrl + req.route.path;
+        return req.route.path;
     }
+    if (req.baseUrl) return req.baseUrl;
+    return "/unknown"; // bots / random requests
 }
 
 
-// -------------------- GLOBAL METRICS MIDDLEWARE --------------------
-app.use((req, res, next) => {
-    // Temporarily store start time
-    const startTime = Date.now();
 
-    // OTEL span
+// -------------------- METRICS MIDDLEWARE (AFTER ROUTES) --------------------
+app.use((req, res, next) => {
+    const start = Date.now();
+
     const span = tracer ? tracer.startSpan(`HTTP ${req.method} ${req.originalUrl}`) : null;
 
-    res.on('finish', () => {
+    res.on("finish", () => {
+        const duration = (Date.now() - start) / 1000;
         const routeLabel = getRouteLabel(req);
-        const durationSeconds = (Date.now() - startTime) / 1000;
 
+        // Count total requests
         httpRequestsTotal.inc({
             method: req.method,
             route: routeLabel,
             status: res.statusCode
         });
 
-        httpRequestDuration.labels(req.method, routeLabel).observe(durationSeconds);
+        // Record duration
+        httpRequestDuration.labels(req.method, routeLabel).observe(duration);
 
         if (span) {
             span.setAttribute("http.status", res.statusCode);
@@ -128,13 +138,6 @@ app.use((req, res, next) => {
     next();
 });
 
-
-// -------------------- ROUTES --------------------
-app.use("/auth", require('./auth/login'));
-app.use("/auth/sign-up", require('./auth/registeration'));
-
-app.use("/api/admin", require('./admin/routing'));
-app.use("/api/users", require('./users/routing'));
 
 
 // -------------------- METRICS ENDPOINT --------------------
@@ -148,7 +151,10 @@ app.get('/metrics', async (req, res) => {
 });
 
 
+
 // -------------------- SERVER --------------------
 const serve = app.listen(process.env.PORT || 3010, () => {
     console.log("🚀 Server running on " + (process.env.PORT || 3010));
 });
+
+module.exports = app;
