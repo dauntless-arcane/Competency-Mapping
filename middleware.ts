@@ -4,19 +4,23 @@ import type { NextRequest } from "next/server";
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Public routes (no protection)
-  const isPublic =
-    pathname.startsWith("/login") ||
-    pathname.startsWith("/auth/login") ||
-    pathname.startsWith("/auth/signup") ||
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon") ||
-    pathname.startsWith("/api/auth"); // Let login API through
+  // Allow public routes
+  const publicRoutes = [
+    "/auth/login",
+    "/auth/signup",
+    "/login",
+    "/_next",
+    "/favicon",
+    "/api/auth",
+  ];
 
-  if (isPublic) return NextResponse.next();
+  // If request matches any public route → allow
+  if (publicRoutes.some(route => pathname.startsWith(route))) {
+    return NextResponse.next();
+  }
 
-  // PROTECTED ROUTES ↓↓↓
-const token = req.cookies.get("accessToken")?.value;
+  // Check auth token
+  const token = req.cookies.get("accessToken")?.value;
 
   if (!token) {
     const url = req.nextUrl.clone();
