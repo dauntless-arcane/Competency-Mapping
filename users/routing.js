@@ -21,7 +21,7 @@ app.use('/', (req, res, next) => {
     t_log();
 
     // AUTH BLOCK (commented)
-    /*
+    
     const t_auth = startTimer("users_root_middleware_auth");
     const auth = req.headers.authorization || "";
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
@@ -42,7 +42,7 @@ app.use('/', (req, res, next) => {
         t_total();
         return res.status(401).json({ Status: false, Msg: "Invalid token" });
     }
-    */
+    
 
     t_total();
     next();
