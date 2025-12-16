@@ -17,6 +17,10 @@ jobs:
               else
               echo "✅ SERVER_IP is set: ${{ secrets.SERVER_HOST }}"
               fi
+      - name: 🧪 SHA256 of SSH key (GitHub)
+        run: |
+            echo "GitHub SSH key SHA256:"
+            sha256sum ~/.ssh/id_ed25519
 
       - name: 🔐 Configure SSH
         run: |
