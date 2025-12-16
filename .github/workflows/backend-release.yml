@@ -10,6 +10,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: 🧪 Debug SERVER_IP
+        run: |
+              if [ -z "${{ secrets.SERVER_IP }}" ]; then
+              echo "❌ SERVER_IP is EMPTY or NOT SET"
+              else
+              echo "✅ SERVER_IP is set: ${{ secrets.SERVER_IP }}"
+              fi
+
       - name: 🔐 Configure SSH
         run: |
           mkdir -p ~/.ssh
