@@ -17,10 +17,6 @@ jobs:
               else
               echo "✅ SERVER_IP is set: ${{ secrets.SERVER_HOST }}"
               fi
-      - name: 🧪 SHA256 of SSH key (GitHub)
-        run: |
-            echo "GitHub SSH key SHA256:"
-            sha256sum ~/.ssh/id_ed25519
 
       - name: 🔐 Configure SSH
         run: |
@@ -28,6 +24,10 @@ jobs:
           echo "${{ secrets.SERVER_SSH_PRIVATE }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+      - name: 🧪 SHA256 of SSH key (GitHub)
+        run: |
+            echo "GitHub SSH key SHA256:"
+            sha256sum ~/.ssh/id_ed25519
 
       - name: 🧪 Test SSH connection
         run: |
