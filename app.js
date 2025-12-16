@@ -65,12 +65,18 @@ try {
 
 // -------------------- ENV --------------------
 dotenv.config({ path: './.env' });
+const allowedOrigins = [
+  process.env.FRONTEND_ORIGIN, // https://competency-mapping.vercel.app
+  "http://localhost:3000"
+];
 
 
 
 // -------------------- CORS --------------------
 app.use(function (req, res, next) {
-    res.header("Access-Control-Allow-Origin", [process.env.FRONTEND_ORIGIN,'localhost:3000'] || "*");
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
     res.header("Access-Control-Allow-Credentials", "true");
     res.header(
         "Access-Control-Allow-Headers",
