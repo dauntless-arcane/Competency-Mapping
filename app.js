@@ -70,7 +70,7 @@ dotenv.config({ path: './.env' });
 
 // -------------------- CORS --------------------
 app.use(function (req, res, next) {
-    res.header("Access-Control-Allow-Origin", process.env.FRONTEND_ORIGIN || "*");
+    res.header("Access-Control-Allow-Origin", [process.env.FRONTEND_ORIGIN,'localhost:3000'] || "*");
     res.header("Access-Control-Allow-Credentials", "true");
     res.header(
         "Access-Control-Allow-Headers",

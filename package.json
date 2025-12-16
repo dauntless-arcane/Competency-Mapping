@@ -47,6 +47,7 @@
     "swagger-ui-express": "^5.0.1",
     "ua-parser-js": "^2.0.6",
     "uuid": "^13.0.0",
+    "uuidv4": "^6.2.13",
     "workerpool": "^10.0.1"
   },
   "devDependencies": {
