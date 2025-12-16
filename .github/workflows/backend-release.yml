@@ -12,10 +12,10 @@ jobs:
     steps:
       - name: 🧪 Debug SERVER_IP
         run: |
-              if [ -z "${{ secrets.SERVER_IP }}" ]; then
+              if [ -z "${{ secrets.SERVER_HOST }}" ]; then
               echo "❌ SERVER_IP is EMPTY or NOT SET"
               else
-              echo "✅ SERVER_IP is set: ${{ secrets.SERVER_IP }}"
+              echo "✅ SERVER_IP is set: ${{ secrets.SERVER_HOST }}"
               fi
 
       - name: 🔐 Configure SSH
@@ -23,7 +23,7 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
       - name: 🧪 Test SSH connection
         run: |
