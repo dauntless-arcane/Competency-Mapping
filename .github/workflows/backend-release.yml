@@ -1,4 +1,4 @@
-name: 🔐 SSH Connection Test
+name: Sync backend → main & Build + Deploy Docker
 
 on:
   workflow_dispatch:
