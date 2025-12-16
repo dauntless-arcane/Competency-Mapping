@@ -1,7 +1,9 @@
 name: Sync backend → main & Build + Deploy Docker
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - backend
 
 jobs:
   ssh-test:
