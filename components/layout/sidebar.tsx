@@ -24,7 +24,8 @@ interface SidebarProps {
 const studentNavItems = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
   { name: 'My Courses', href: '/courses', icon: BookOpen },
-  { name: 'Tests', href: '/tests', icon: Brain },
+  { name: 'Psychology Tests', href: '/psychology-tests', icon: Brain },
+  { name: 'Placement Tests', href: '/placement-tests', icon: Brain },
   { name: 'Results', href: '/result', icon: BarChart3 },
   { name: 'Reports', href: '/reports', icon: FileText },
 ];
