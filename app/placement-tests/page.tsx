@@ -5,10 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { apiClient } from "@/lib/auth/apiClient";
 import { AlertCircle, Brain, Clock, Loader2, Play, Search, Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { apiClient, getUser } from "@/lib/auth/apiClient";
 
 interface Test {
   surveyId: string;
@@ -26,7 +26,7 @@ interface ApiResponse {
   message?: string;
 }
 
-export default function TestsPage() {
+export default function PlacementTestsPage() {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLevel, setFilterLevel] = useState('all');
