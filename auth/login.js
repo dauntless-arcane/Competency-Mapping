@@ -31,7 +31,6 @@ if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET missing");
 router.use(helmet());
 router.use(express.json({ limit: "10kb" }));
 router.use(cookieParser());
-router.use(cors({ origin: process.env.FRONTEND_ORIGIN || "*", credentials: true }));
 
 
 // ------------ HELPERS ----------------
