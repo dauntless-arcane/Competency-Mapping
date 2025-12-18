@@ -4,15 +4,17 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import {
+  Activity,
   BarChart3,
   BookOpen,
   Brain,
   FileText,
+  HeartPulse,
   Home,
   LogOut,
   Menu,
   Settings,
-  Users
+  Users,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -24,8 +26,8 @@ interface SidebarProps {
 const studentNavItems = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
   { name: 'My Courses', href: '/courses', icon: BookOpen },
-  { name: 'Psychology Tests', href: '/psychology-tests', icon: Brain },
-  { name: 'Placement Tests', href: '/placement-tests', icon: Brain },
+  { name: 'Psychology Tests', href: '/psychology-tests', icon: HeartPulse  },
+  { name: 'Placement Tests', href: '/placement-tests', icon: Activity },
   { name: 'Results', href: '/result', icon: BarChart3 },
   { name: 'Reports', href: '/reports', icon: FileText },
 ];
