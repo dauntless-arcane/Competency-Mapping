@@ -1,13 +1,12 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Brain } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -77,14 +76,16 @@ const handleSubmit = async (e: React.FormEvent) => {
         
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="p-3 bg-[#2E58A6] rounded-full">
-              <Brain className="h-8 w-8 text-white" />
-            </div>
+            <img
+              src="/CAPS_logo.png"
+              alt="CAPS LOGO"
+              className="w-60 h-18 object-cover rounded-3xl"
+            />
           </div>
 
           <CardTitle className="text-2xl font-bold text-[#032B61]">Create Your Account</CardTitle>
           <CardDescription className="text-[#6B86B4]">
-            Join MindLMS to start your learning journey
+            Join Compitency Mapping to start your learning journey
           </CardDescription>
         </CardHeader>
 

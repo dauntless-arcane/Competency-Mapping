@@ -4,12 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Brain } from 'lucide-react';
+import { setAccessToken } from "@/lib/auth/tokenManager";
+import Cookies from "js-cookie";
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { setAccessToken } from "@/lib/auth/tokenManager";
-import Cookies from "js-cookie";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -69,12 +68,15 @@ const handleSubmit = async (e: React.FormEvent) => {
         
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="p-3 bg-[#2E58A6] rounded-full">
-              <Brain className="h-8 w-8 text-white" />
-            </div>
+            <img
+              src="/CAPS_logo.png"
+              alt="CAPS LOGO"
+              className="w-60 h-18 object-cover rounded-3xl"
+            />
           </div>
+          
 
-          <CardTitle className="text-2xl font-bold text-[#032B61]">Welcome to MindLMS</CardTitle>
+          <CardTitle className="text-2xl font-bold text-[#032B61]">Welcome to CMP</CardTitle>
           <CardDescription className="text-[#6B86B4]">
             Sign in to access your personalized learning platform
           </CardDescription>
