@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: psych-api
-          image: YOUR_DOCKER_USERNAME/psych-api:backend-latest
+          image: mpratyush54/psych-api:backend-latest
           ports:
             - containerPort: 3010
           envFrom:
