@@ -22,27 +22,20 @@ spec:
         - name: psych-api
           image: mpratyush54/psych-api:backend-latest
           imagePullPolicy: Always
-
           ports:
             - containerPort: 3010
-
           envFrom:
             - secretRef:
                 name: psych-env
-
-          # ✅ Ready when metrics endpoint responds
           readinessProbe:
             httpGet:
               path: /metrics
               port: 3010
-            initialDelaySeconds: 15
+            initialDelaySeconds: 5
             periodSeconds: 10
-            failureThreshold: 3
-
-          # ✅ Alive if TCP socket is open (safer than HTTP)
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /metrics
               port: 3010
-            initialDelaySeconds: 40
+            initialDelaySeconds: 15
             periodSeconds: 20
-            failureThreshold: 3

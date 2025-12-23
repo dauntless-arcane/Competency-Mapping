@@ -8,5 +8,5 @@ spec:
   selector:
     app: psych-api
   ports:
-    - port: 80
+    - port: 3010
       targetPort: 3010
