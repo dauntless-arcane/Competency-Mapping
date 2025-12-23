@@ -1,38 +1,95 @@
-name: Sync backend → main & Build + Deploy Docker
+name: Backend Release & Docker Build (GitOps)
 
 on:
   push:
     branches:
       - backend
 
+permissions:
+  contents: write
+  packages: write
+
 jobs:
-  ssh-test:
+  # -----------------------------------------------------------
+  # 1. CREATE BACKEND RELEASE TAG (KEEP)
+  # -----------------------------------------------------------
+  release:
+    runs-on: ubuntu-latest
+
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create new backend release tag
+        id: tag
+        run: |
+          echo "🏷️ Generating new backend version tag"
+          git fetch --tags
+
+          latest_tag=$(git tag --list "backend-v*" | sort -V | tail -n 1)
+          if [ -z "$latest_tag" ]; then
+            latest_tag="backend-v0.0.0"
+          fi
+
+          version=${latest_tag#backend-v}
+          major=$(echo $version | cut -d. -f1)
+          minor=$(echo $version | cut -d. -f2)
+          patch=$(echo $version | cut -d. -f3)
+          new_patch=$((patch + 1))
+
+          new_tag="backend-v${major}.${minor}.${new_patch}"
+
+          echo "➡️ New tag: $new_tag"
+          git tag -a "$new_tag" -m "🔖 Auto backend release: $new_tag"
+          git push origin "$new_tag"
+
+          echo "tag=$new_tag" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          release_name: "🚀 Backend Release ${{ steps.tag.outputs.tag }}"
+          body: |
+            Automated backend release.
+            Docker image will be built for this release.
+  # -----------------------------------------------------------
+  # 2. BUILD & PUSH DOCKER IMAGE (KEEP)
+  # -----------------------------------------------------------
+  docker:
+    needs: release
     runs-on: ubuntu-latest
 
     steps:
-      - name: 🧪 Debug SERVER_IP
-        run: |
-              if [ -z "${{ secrets.SERVER_HOST }}" ]; then
-              echo "❌ SERVER_IP is EMPTY or NOT SET"
-              else
-              echo "✅ SERVER_IP is set: ${{ secrets.SERVER_HOST }}"
-              fi
+      - name: Checkout backend branch
+        uses: actions/checkout@v4
+        with:
+          ref: backend
 
-      - name: 🔐 Configure SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SERVER_SSH_PRIVATE }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
-      - name: 🧪 SHA256 of SSH key (GitHub)
-        run: |
-            echo "GitHub SSH key SHA256:"
-            sha256sum ~/.ssh/id_ed25519
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_PASS }}
 
-      - name: 🧪 Test SSH connection
-        run: |
-          ssh -i ~/.ssh/id_ed25519 \
-            -o BatchMode=yes \
-            -o StrictHostKeyChecking=yes \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
-            "echo CONNECTED && whoami && hostname"
+      - name: Build & Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USER }}/psych-api:backend-latest
+            ${{ secrets.DOCKERHUB_USER }}/psych-api:${{ needs.release.outputs.tag }}
