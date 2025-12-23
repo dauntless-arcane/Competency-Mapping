@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: psych-api
+  namespace: psych
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: psych-api
+  template:
+    metadata:
+      labels:
+        app: psych-api
+    spec:
+      containers:
+        - name: psych-api
+          image: YOUR_DOCKER_USERNAME/psych-api:backend-latest
+          ports:
+            - containerPort: 3010
+          envFrom:
+            - secretRef:
+                name: psych-env
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3010
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3010
+            initialDelaySeconds: 15
+            periodSeconds: 20
