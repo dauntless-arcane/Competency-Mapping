@@ -29,13 +29,13 @@ spec:
                 name: psych-env
           readinessProbe:
             httpGet:
-              path: /health
+              path: /metrics
               port: 3010
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /health
+              path: /metrics
               port: 3010
             initialDelaySeconds: 15
             periodSeconds: 20
