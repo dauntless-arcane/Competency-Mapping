@@ -4,9 +4,8 @@ metadata:
   name: psych-api
   namespace: psych
 spec:
-  type: ClusterIP   # IMPORTANT: internal only
   selector:
     app: psych-api
   ports:
-    - port: 3010
+    - port: 80
       targetPort: 3010
