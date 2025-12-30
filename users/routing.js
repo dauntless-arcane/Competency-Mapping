@@ -44,8 +44,8 @@ app.use('/', (req, res, next) => {
     }
     
 
-    t_total();
-    next();
+    // t_total();
+    // next();
 });
 
 
