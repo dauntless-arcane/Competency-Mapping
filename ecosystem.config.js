@@ -1,17 +1,16 @@
 const path = require("path");
-const ROOT = path.resolve(__dirname);
-const dotenv = require('dotenv');
-dotenv.config({ path: './.env' });
+const dotenv = require("dotenv");
+dotenv.config();
 
 module.exports = {
   apps: [
-    // =====================================================
-    // 1. MAIN API SERVERS (Cluster Mode)
-    // =====================================================
+    // ================================
+    // MAIN API
+    // ================================
     {
       name: "psych-api",
       script: "app.js",
-      instances: "max",               // auto scale based on CPU
+      instances: "max",
       exec_mode: "cluster",
       watch: false,
       max_memory_restart: "1G",
@@ -26,25 +25,27 @@ module.exports = {
         PORT: process.env.PORT || 3010
       },
 
-      error_file: "./logs/err.log",
-      out_file: "./logs/out.log",
+      // 🔥 IMPORTANT (K8s compatible)
+      out_file: "/dev/stdout",
+      error_file: "/dev/stderr",
+      merge_logs: true,
       log_date_format: "YYYY-MM-DD HH:mm:ss",
       restart_delay: 3000
     },
 
-    // =====================================================
-    // 2. BACKGROUND WORKERS (Cluster Mode)
-    // =====================================================
+    // ================================
+    // WORKER
+    // ================================
     {
       name: "psych-worker",
       script: "./worker.js",
-      instances: 1,               // each CPU gets a worker
+      instances: 1,
       exec_mode: "fork",
       watch: false,
 
       env: {
         NODE_ENV: "development",
-        PORT: process.env.WORKER_PORT || 3050   // worker port optional
+        PORT: process.env.WORKER_PORT || 3050
       },
 
       env_production: {
@@ -52,8 +53,10 @@ module.exports = {
         PORT: process.env.WORKER_PORT || 3050
       },
 
-      error_file: "./logs/worker-err.log",
-      out_file: "./logs/worker-out.log",
+      // 🔥 IMPORTANT (K8s compatible)
+      out_file: "/dev/stdout",
+      error_file: "/dev/stderr",
+      merge_logs: true,
       log_date_format: "YYYY-MM-DD HH:mm:ss",
       restart_delay: 2000
     }
