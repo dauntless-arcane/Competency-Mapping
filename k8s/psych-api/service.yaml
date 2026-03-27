@@ -3,9 +3,12 @@ kind: Service
 metadata:
   name: psych-api
   namespace: psych
+  labels:
+    monitor: "true"   # 👈 REQUIRED
 spec:
   selector:
     app: psych-api
   ports:
-    - port: 80
+    - name: http      # 👈 REQUIRED
+      port: 80
       targetPort: 3010
