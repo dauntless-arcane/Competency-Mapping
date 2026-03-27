@@ -3,6 +3,9 @@ kind: Deployment
 metadata:
   name: psych-api
   namespace: psych
+  labels:
+    monitor: "true"   
+    project: psych-api
 spec:
   replicas: 2
   strategy:
