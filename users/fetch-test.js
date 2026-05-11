@@ -36,7 +36,7 @@ async function handleGetAllTests(req, res) {
         recommended: 1
       }
     }
-  );
+  ).lean();
 
   const responseObj = { status: true, error: false, data };
 
