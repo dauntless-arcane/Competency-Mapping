@@ -23,20 +23,9 @@ async function handleGetAllTests(req, res) {
     t_total();
     return res.json(cached);
   }
-  const data = await TestIndex.find(
-    {},
-    {
-      projection: {
-        _id: 0,
-        surveyId: 1,
-        description: 1,
-        name: 1,
-        duration: 1,
-        level: 1,
-        recommended: 1
-      }
-    }
-  ).lean();
+  const data = await TestIndex.find({})
+    .select("surveyId description name duration level recommended")
+    .lean();
 
   const responseObj = { status: true, error: false, data };
 
@@ -79,22 +68,9 @@ async function handleGetOneTest(req, res) {
 
     // -------------------- DB QUERY --------------------
     const t_query = startTimer("tests_get_one_db_query");
-    const data = await TestIndex.find(
-      { surveyId: id },
-      {
-        projection: {
-          _id: 0,
-          surveyId: 1,
-          name: 1,
-          description: 1,
-          categories: 1,
-          totalQuestions: 1,
-          scoringMethod: 1,
-          questions: 1,
-          updatedAt: 1
-        }
-      }
-    ).toArray();
+    const data = await TestIndex.find({ surveyId: id })
+      .select("surveyId name description categories totalQuestions scoringMethod questions updatedAt")
+      .lean();
     t_query();
 
     if (!data.length) {
@@ -140,9 +116,9 @@ async function handleGetOneTest(req, res) {
 // =================================================================
 
 // GET ALL TESTS — cached for 300s
-router.post('/',  handleGetAllTests);  
+router.post('/', handleGetAllTests);
 
-router.post('/:id', handleGetOneTest); 
+router.post('/:id', handleGetOneTest);
 
 
 module.exports = router;
