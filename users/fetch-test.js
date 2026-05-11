@@ -36,7 +36,7 @@ async function handleGetAllTests(req, res) {
         recommended: 1
       }
     }
-  ).toArray();
+  );
 
   const responseObj = { status: true, error: false, data };
 
